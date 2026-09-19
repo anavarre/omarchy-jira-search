@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "com.anavarre.jira-search",
+  "name": "Jira Search",
+  "version": "1.0.0",
+  "author": "Aurelien Navarre",
+  "license": "MIT",
+  "description": "Search Jira from the bar by text, JQL or ticket ID, and view an issue's metadata.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Jira Search",
+    "description": "Search Jira by text, JQL or ticket ID and show an issue's summary, status, assignee and priority.",
+    "category": "Productivity",
+    "aliases": ["jira", "ticket", "issue"],
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}
