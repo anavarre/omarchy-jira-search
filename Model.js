@@ -201,6 +201,20 @@ function filterClause(filter) {
   return clause
 }
 
+// Finished work is rarely what a search is for, so it is left out by default.
+// The moment a JQL filter says anything about state itself — a status, a
+// status category, a resolution — that is the intent, and nothing is added.
+var statusFieldPattern = /\b(status|statusCategory|resolution|resolutiondate)\b/i
+
+var openOnlyClause = "statusCategory != Done"
+
+function mentionsStatus(list) {
+  for (var i = 0; i < (list || []).length; i++) {
+    if (list[i].kind === "jql" && statusFieldPattern.test(String(list[i].value || ""))) return true
+  }
+  return false
+}
+
 // The whole search: every committed filter, plus the draft still in the
 // field, ANDed. The sort comes from the most recent filter that brought one.
 // Returns "" when there is nothing to search on.
@@ -220,6 +234,7 @@ function jqlForFilters(filters, draft) {
     if (clause !== "") parts.push(clause)
   }
   if (parts.length === 0) return ""
+  if (!mentionsStatus(list)) parts.push(openOnlyClause)
   return parts.join(" AND ") + " " + (order !== "" ? order : "ORDER BY updated DESC")
 }
 

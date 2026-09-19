@@ -137,11 +137,19 @@ Panel {
     authProcess.running = true
   }
 
-  // Enter. A highlighted result opens; a complete ticket ID typed on its own
-  // resolves to the ticket itself; anything else becomes a filter, the field
-  // empties, and the search re-runs with one more condition on it.
+  // Enter. A card on screen is a ticket already resolved, and opening it is
+  // what the card is for, so Enter opens it. A highlighted result opens; a
+  // complete ticket ID typed on its own resolves to the ticket itself;
+  // anything else becomes a filter, the field empties, and the search re-runs
+  // with one more condition on it.
   function submit(text) {
     if (!root.authenticated) { root.checkAuth(); return }
+    // A query still settling is a different ticket in the making, and the card
+    // under it is already stale — that falls through to the search below.
+    if (root.issue !== null && root.issue.url !== "" && !debounce.running) {
+      root.openIssue()
+      return
+    }
     debounce.stop()
     var trimmed = String(text).trim()
     if (root.selected >= 0 && root.selected < root.results.length) {
@@ -220,6 +228,12 @@ Panel {
     root.close()
   }
 
+  function openIssue() {
+    if (root.issue === null || root.issue.url === "") return
+    Qt.openUrlExternally(root.issue.url)
+    root.close()
+  }
+
   // Full metadata for one ticket. An in-flight lookup is left to finish and its
   // result discarded — `issue` is only written by the run that is still wanted.
   function lookup(text) {
@@ -279,7 +293,6 @@ Panel {
     if (!root.authenticated || root.loading) return []
     if (root.issue !== null) {
       var view = []
-      if (root.issue.url !== "") view.push("open")
       if (root.results.length > 0) view.push("back")
       return view
     }
@@ -292,11 +305,8 @@ Panel {
   property int action: -1
 
   // Whatever changed the button list also changed the view under it, so the
-  // cursor starts over rather than pointing at a button that moved. A ticket
-  // card is the exception: opening it is what the card is for, so the cursor
-  // lands on "Open in browser" and Enter presses it.
-  onActionsChanged: root.action = (root.issue !== null && root.actions.length > 0
-    && root.actions[0] === "open") ? 0 : -1
+  // cursor starts over rather than pointing at a button that moved.
+  onActionsChanged: root.action = -1
 
   function isAction(id) {
     return root.action >= 0 && root.action < root.actions.length && root.actions[root.action] === id
@@ -321,10 +331,6 @@ Panel {
     else if (id === "credentials") root.openSettings()
     else if (id === "clear") root.clearFilters()
     else if (id === "back") root.issue = null
-    else if (id === "open" && root.issue && root.issue.url !== "") {
-      Qt.openUrlExternally(root.issue.url)
-      root.close()
-    }
     return true
   }
 
@@ -350,6 +356,13 @@ Panel {
     if (event.key === Qt.Key_Left) return root.action >= 0 && root.moveAction(-1)
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) return root.activateAction()
     return false
+  }
+
+  // With nothing typed, a lone result is unambiguous: put the cursor on it so
+  // Enter opens it without an extra Down first.
+  function resetSelection() {
+    root.selected = (field.text.trim() === "" && root.issue === null
+      && root.results.length === 1) ? 0 : -1
   }
 
   function moveSelection(delta) {
@@ -532,7 +545,7 @@ Panel {
       try {
         root.results = Model.parseResults(res.body)
         root.resultsQuery = searchProcess.query
-        root.selected = -1
+        root.resetSelection()
         root.errorText = root.results.length === 0
           ? (root.filters.length > 0 && root.draftQuery === ""
               ? "No tickets match these filters."
@@ -552,7 +565,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: root.showSettings ? siteField : field
-    contentWidth: panel.fittedContentWidth(Style.space(360))
+    contentWidth: panel.fittedContentWidth(Style.space(720))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
     Column {
@@ -632,7 +645,7 @@ Panel {
           if (!root.authenticated) return
           root.isJql = Model.looksLikeJql(text)
           var trimmed = text.trim()
-          root.selected = -1
+          root.resetSelection()
           if (trimmed === "" && root.filters.length === 0) {
             root.clearResults()
             root.issue = null
@@ -836,28 +849,38 @@ Panel {
         }
       }
 
-      Flow {
+      // Account line and its button sit together on the right edge of the card.
+      Item {
         width: parent.width
-        spacing: Style.space(6)
+        height: accountRow.height
         visible: root.authenticated && !root.showSettings && root.issue === null && !root.loading
                  && !root.searching && root.errorText === "" && root.results.length === 0
                  && root.filters.length === 0
 
-        // A long account name elides rather than widening the row past the card.
-        Text {
-          width: Math.min(implicitWidth, parent.width)
-          text: root.authAccount !== "" ? "Signed in as " + root.authAccount : "Signed in"
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
-        }
+        Row {
+          id: accountRow
+          anchors.right: parent.right
+          spacing: Style.space(6)
 
-        Button {
-          text: "Change credentials"
-          foreground: root.foreground
-          hasCursor: root.isAction("credentials")
-          onClicked: root.openSettings()
+          // A long account name elides rather than widening the row past the card.
+          Text {
+            width: Math.min(implicitWidth, parent.parent.width - credentialsButton.width - parent.spacing)
+            anchors.verticalCenter: credentialsButton.verticalCenter
+            text: root.authAccount !== "" ? "Signed in as " + root.authAccount : "Signed in"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignRight
+          }
+
+          Button {
+            id: credentialsButton
+            text: "Change credentials"
+            foreground: root.foreground
+            hasCursor: root.isAction("credentials")
+            onClicked: root.openSettings()
+          }
         }
       }
 
@@ -949,14 +972,39 @@ Panel {
                   width: parent.width - Style.space(12)
                   spacing: Style.space(2)
 
-                  Text {
+                  // Key and state read left to right; the issue type sits at
+                  // the far right so the column scans as its own list.
+                  Item {
                     width: parent.width
-                    text: modelData.key + " · " + modelData.status
-                    color: root.foreground
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    elide: Text.ElideRight
+                    height: Math.max(heading.implicitHeight, issueType.implicitHeight)
+
+                    Text {
+                      id: heading
+                      anchors.left: parent.left
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Math.max(0, parent.width - issueType.width
+                        - (issueType.width > 0 ? Style.space(4) : 0))
+                      text: modelData.key + " · " + modelData.status
+                      color: root.foreground
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      elide: Text.ElideRight
+                    }
+
+                    Text {
+                      id: issueType
+                      anchors.right: parent.right
+                      anchors.verticalCenter: parent.verticalCenter
+                      visible: modelData.type !== ""
+                      width: visible ? Math.min(implicitWidth, parent.width * 0.4) : 0
+                      text: modelData.type
+                      color: root.dim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      horizontalAlignment: Text.AlignRight
+                      elide: Text.ElideRight
+                    }
                   }
 
                   Text {
@@ -979,60 +1027,86 @@ Panel {
         spacing: Style.space(6)
         visible: !root.loading && root.issue !== null
 
-        Text {
+        // The card is the ticket, so the card is the thing you press: Enter
+        // opens it without a button to reach for first, and a click anywhere
+        // on the metadata does the same for the mouse.
+        Column {
           width: parent.width
-          text: root.issue ? root.issue.key + " · " + root.issue.status : ""
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
-          font.bold: true
-          elide: Text.ElideRight
-        }
+          spacing: Style.space(6)
 
-        Text {
-          width: parent.width
-          text: root.issue ? root.issue.summary : ""
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          wrapMode: Text.Wrap
-        }
+          HoverHandler {
+            id: issueHover
+            cursorShape: Qt.PointingHandCursor
+          }
 
-        Text {
-          width: parent.width
-          text: root.issue
-            ? [root.issue.type, root.issue.priority, root.issue.assignee].filter(function(v) { return v !== "" }).join(" · ")
-            : ""
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          wrapMode: Text.Wrap
-        }
+          TapHandler { onTapped: root.openIssue() }
 
-        Text {
-          width: parent.width
-          visible: root.issue && root.issue.updated !== ""
-          text: root.issue ? "Updated " + Model.formatUpdated(root.issue.updated) : ""
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
+          // Key and status on the left, the how-to-open hint pinned to the
+          // right edge: the hint is an instruction, not another metadata
+          // field, so it sits clear of the column the metadata reads down.
+          Item {
+            width: parent.width
+            height: issueKey.implicitHeight
+
+            Text {
+              id: issueKey
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              width: parent.width - (openHint.visible ? openHint.width + Style.space(8) : 0)
+              text: root.issue ? root.issue.key + " · " + root.issue.status : ""
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+              elide: Text.ElideRight
+            }
+
+            Text {
+              id: openHint
+              anchors.right: parent.right
+              anchors.verticalCenter: issueKey.verticalCenter
+              visible: root.issue && root.issue.url !== ""
+              text: "Press Enter to open in browser"
+              color: issueHover.hovered ? root.foreground : root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          Text {
+            width: parent.width
+            text: root.issue ? root.issue.summary : ""
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            wrapMode: Text.Wrap
+          }
+
+          Text {
+            width: parent.width
+            text: root.issue
+              ? [root.issue.type, root.issue.priority, root.issue.assignee].filter(function(v) { return v !== "" }).join(" · ")
+              : ""
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            wrapMode: Text.Wrap
+          }
+
+          Text {
+            width: parent.width
+            visible: root.issue && root.issue.updated !== ""
+            text: root.issue ? "Updated " + Model.formatUpdated(root.issue.updated) : ""
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
         }
 
         Flow {
           width: parent.width
           spacing: Style.space(6)
-
-          Button {
-            visible: root.issue && root.issue.url !== ""
-            text: "Open in browser"
-            foreground: root.foreground
-            hasCursor: root.isAction("open")
-            onClicked: {
-              Qt.openUrlExternally(root.issue.url)
-              root.close()
-            }
-          }
 
           Button {
             visible: root.results.length > 0
