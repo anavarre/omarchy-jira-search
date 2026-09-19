@@ -41,12 +41,12 @@ Click the Jira icon in the bar (or run
 ### Stacking filters
 
 Every search you submit stays on screen as a chip, and the panel ANDs the chips
-together into one JQL query. Search `evolving web` and press Enter; the chip
-appears and the field clears. Type `project = HAAS` and press Enter, and the
-list is now every HAAS ticket mentioning evolving web:
+together into one JQL query. Search `open web` and press Enter; the chip
+appears and the field clears. Type `project = WEB` and press Enter, and the
+list is now every HAAS ticket mentioning open web:
 
 ```
-text ~ "\"evolving web\"" AND (project = HAAS) ORDER BY updated DESC
+text ~ "\"open web\"" AND (project = WEB) ORDER BY updated DESC
 ```
 
 Keep going and each one narrows further. Whatever is still half-typed in the
@@ -55,7 +55,7 @@ type and settles when you submit.
 
 Text filters match the **exact phrase**, in order. The doubled quotes above
 are the reason: JQL's own quotes only delimit a string, and Lucene then splits
-what is inside into separate, stemmed words — `text ~ "evolving web"` also
+what is inside into separate, stemmed words — `text ~ "open web"` also
 returns a ticket that says "webinar" somewhere and "evolve" somewhere else.
 The escaped inner pair is what Lucene reads as a phrase. Note that `text`
 covers the summary, description **and comments**, so a match may be in a
