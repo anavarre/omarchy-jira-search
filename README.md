@@ -1,10 +1,10 @@
-![Jira Search](omarchy-jira-search.png)
-
 # Jira Search
 
 An [Omarchy](https://omarchy.org) bar widget for Jira Cloud. Search by text, by
 JQL or by ticket ID, stack searches as filters that narrow one another, and
 open any issue's metadata without leaving the bar.
+
+![Jira Search](omarchy-jira-search.png)
 
 Requires `curl`.
 
