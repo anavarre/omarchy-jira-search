@@ -1,3 +1,5 @@
+![Jira Search](omarchy-jira-search.png)
+
 # Jira Search
 
 An [Omarchy](https://omarchy.org) bar widget for Jira Cloud. Search by text, by
@@ -27,27 +29,6 @@ o.bind("SUPER + SHIFT + J", "Jira Search", "omarchy-shell shell summon com.anava
 
 Hyprland picks the change up on save; `SUPER + SHIFT + J` then opens the panel
 with the field already focused.
-
-## Uninstall
-
-```bash
-omarchy plugin disable com.anavarre.jira-search
-omarchy plugin remove com.anavarre.jira-search --yes
-omarchy-shell shell rescanPlugins
-```
-
-`disable` takes the widget out of the bar; `remove` deletes
-`~/.config/omarchy/plugins/com.anavarre.jira-search`.
-
-That leaves your credentials on disk. To remove those too — or use **Forget**
-in the panel before uninstalling:
-
-```bash
-rm -rf ~/.config/omarchy/jira-search
-```
-
-Also drop the `o.bind(...)` line from `~/.config/hypr/bindings.lua` if you
-added one.
 
 ## Connect
 
@@ -144,6 +125,27 @@ a current setup keeps working untouched:
 The widget's shell does not inherit `~/.bashrc`, so a `$JIRA_API_TOKEN`
 exported there is invisible to it — that is what the form is for. The `jira`
 CLI itself is not required; only its config file is read, if present.
+
+## Uninstall
+
+```bash
+omarchy plugin disable com.anavarre.jira-search
+omarchy plugin remove com.anavarre.jira-search --yes
+omarchy-shell shell rescanPlugins
+```
+
+`disable` takes the widget out of the bar; `remove` deletes
+`~/.config/omarchy/plugins/com.anavarre.jira-search`.
+
+That leaves your credentials on disk. To remove those too — or use **Forget**
+in the panel before uninstalling:
+
+```bash
+rm -rf ~/.config/omarchy/jira-search
+```
+
+Also drop the `o.bind(...)` line from `~/.config/hypr/bindings.lua` if you
+added one.
 
 ## License
 
