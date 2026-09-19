@@ -16,6 +16,39 @@ omarchy-shell shell rescanPlugins
 omarchy bar move com.anavarre.jira-search --section center
 ```
 
+### Keybinding
+
+To summon the panel without reaching for the bar, add a binding to
+`~/.config/hypr/bindings.lua`:
+
+```lua
+o.bind("SUPER + SHIFT + J", "Jira Search", "omarchy-shell shell summon com.anavarre.jira-search '{}'")
+```
+
+Hyprland picks the change up on save; `SUPER + SHIFT + J` then opens the panel
+with the field already focused.
+
+## Uninstall
+
+```bash
+omarchy plugin disable com.anavarre.jira-search
+omarchy plugin remove com.anavarre.jira-search --yes
+omarchy-shell shell rescanPlugins
+```
+
+`disable` takes the widget out of the bar; `remove` deletes
+`~/.config/omarchy/plugins/com.anavarre.jira-search`.
+
+That leaves your credentials on disk. To remove those too — or use **Forget**
+in the panel before uninstalling:
+
+```bash
+rm -rf ~/.config/omarchy/jira-search
+```
+
+Also drop the `o.bind(...)` line from `~/.config/hypr/bindings.lua` if you
+added one.
+
 ## Connect
 
 Open the widget and fill in **Site**, **Account email** and **API token**, then
