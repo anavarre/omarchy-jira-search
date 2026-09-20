@@ -7,7 +7,7 @@ import "Model.js" as Model
 
 Panel {
   id: root
-  moduleName: "com.anavarre.jira-search"
+  moduleName: "anavarre.jira-search"
   manageIpc: false
 
   property var anchorItem: null

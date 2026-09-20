@@ -11,11 +11,11 @@ Requires `curl`.
 ## Install
 
 ```bash
-cp -r . ~/.config/omarchy/plugins/com.anavarre.jira-search
-omarchy plugin validate ~/.config/omarchy/plugins/com.anavarre.jira-search
-omarchy plugin enable com.anavarre.jira-search
+cp -r . ~/.config/omarchy/plugins/anavarre.jira-search
+omarchy plugin validate ~/.config/omarchy/plugins/anavarre.jira-search
+omarchy plugin enable anavarre.jira-search
 omarchy-shell shell rescanPlugins
-omarchy bar move com.anavarre.jira-search --section center
+omarchy bar move anavarre.jira-search --section center
 ```
 
 ### Keybinding
@@ -24,7 +24,7 @@ To summon the panel without reaching for the bar, add a binding to
 `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + SHIFT + J", "Jira Search", "omarchy-shell shell summon com.anavarre.jira-search '{}'")
+o.bind("SUPER + SHIFT + J", "Jira Search", "omarchy-shell shell summon anavarre.jira-search '{}'")
 ```
 
 Hyprland picks the change up on save; `SUPER + SHIFT + J` then opens the panel
@@ -43,7 +43,7 @@ credentials** to update it and **Forget** to delete what was stored.
 ## Usage
 
 Click the Jira icon in the bar (or run
-`omarchy-shell shell summon com.anavarre.jira-search '{}'`) and start typing.
+`omarchy-shell shell summon anavarre.jira-search '{}'`) and start typing.
 
 | Input | What happens |
 | --- | --- |
@@ -129,13 +129,13 @@ CLI itself is not required; only its config file is read, if present.
 ## Uninstall
 
 ```bash
-omarchy plugin disable com.anavarre.jira-search
-omarchy plugin remove com.anavarre.jira-search --yes
+omarchy plugin disable anavarre.jira-search
+omarchy plugin remove anavarre.jira-search --yes
 omarchy-shell shell rescanPlugins
 ```
 
 `disable` takes the widget out of the bar; `remove` deletes
-`~/.config/omarchy/plugins/com.anavarre.jira-search`.
+`~/.config/omarchy/plugins/anavarre.jira-search`.
 
 That leaves your credentials on disk. To remove those too — or use **Forget**
 in the panel before uninstalling:
