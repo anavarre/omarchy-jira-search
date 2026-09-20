@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "com.anavarre.jira-search",
+  "id": "anavarre.jira-search",
   "name": "Jira Search",
   "version": "1.0.0",
   "author": "Aurelien Navarre",
