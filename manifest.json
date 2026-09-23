@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Aurelien Navarre",
   "license": "MIT",
-  "description": "Search Jira from the bar by text, JQL or ticket ID, and view an issue's metadata.",
+  "description": "Search Jira by text, JQL or ticket ID in a centered search window, and view an issue's metadata.",
   "kinds": [
     "bar-widget"
   ],

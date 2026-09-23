@@ -70,17 +70,32 @@ Panel {
   property bool hasStoredToken: false
   readonly property bool showSettings: root.configuring || root.authState === "error"
 
-  // The panel is only as tall as what it is showing, so a two-result search
-  // gets a short card and a twenty-result one grows until the screen runs out.
-  // The allowance is whatever the screen leaves after the card's own padding
-  // and the chrome sitting above and below the list.
+  // The card floats in the middle of the screen rather than hanging off the
+  // bar, so it can no longer size itself to its contents: a centered surface
+  // that grows and shrinks under the cursor jumps around as you type. It is
+  // a fixed square instead — as tall as it is wide, at 1.3x the 720 the bar
+  // popout was wide — and the screen only ever shrinks it on a small output.
+  readonly property real cardScale: 1.3
+  readonly property real cardSize: Math.round(Style.space(720) * root.cardScale)
+  readonly property real cardWidth: panel.fittedContentWidth(root.cardSize)
+  readonly property real cardHeight: panel.cappedContentHeight(root.cardSize)
+
+  // What the square leaves the results list once the card's own padding and
+  // the chrome sitting above and below the list are taken out.
   readonly property real resultsChrome: Style.space(96)
   readonly property real maxResultsHeight: Math.max(Style.space(120),
-    panel.availableCardHeight - panel.verticalContentInset - root.resultsChrome)
+    root.cardHeight - panel.verticalContentInset - root.resultsChrome)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  // Type scale, borrowed from the obsidian-focused-search plugin next door:
+  // the menu family rather than the bar's font, and a step up from the sizes
+  // the bar popout used. A window in the middle of the screen is read, not
+  // glanced at on the way past, so the bar's compact type is too small here.
+  readonly property string fontFamily: Style.font.menuFamily
+  readonly property int fontHeading: Style.fontPx(1.5)
+  readonly property int fontBody: Style.font.heading
+  readonly property int fontMeta: Style.font.title
 
   function open() { root.controller.show() }
   function close() { root.controller.hide() }
@@ -558,15 +573,15 @@ Panel {
     }
   }
 
-  KeyboardPanel {
+  CenteredPanel {
     id: panel
     anchorItem: root.anchorItem
     owner: root.hostWidget || root
     bar: root.bar
     open: root.opened
     focusTarget: root.showSettings ? siteField : field
-    contentWidth: panel.fittedContentWidth(Style.space(720))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight)
+    contentWidth: root.cardWidth
+    contentHeight: root.cardHeight
 
     Column {
       id: content
@@ -608,7 +623,7 @@ Panel {
                 text: Model.filterLabel(modelData)
                 color: root.foreground
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
+                font.pixelSize: root.fontMeta
                 font.italic: modelData.kind === "jql"
                 elide: Text.ElideRight
               }
@@ -617,13 +632,15 @@ Panel {
                 text: "\u00d7"
                 color: root.dim
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
+                font.pixelSize: root.fontMeta
               }
             }
           }
         }
 
         Button {
+          fontFamily: root.fontFamily
+          fontSize: root.fontBody
           visible: root.filters.length > 1
           text: "Clear all"
           foreground: root.foreground
@@ -633,6 +650,8 @@ Panel {
       }
 
       TextField {
+        font.family: root.fontFamily
+        font.pixelSize: root.fontBody
         id: field
         width: parent.width
         visible: root.authenticated && !root.showSettings
@@ -681,7 +700,7 @@ Panel {
         text: "Keep typing — searches start at " + root.minQuery + " characters"
         color: root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: root.fontMeta
         elide: Text.ElideRight
       }
 
@@ -692,7 +711,7 @@ Panel {
         text: "JQL — press Enter to add it as a filter"
         color: root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: root.fontMeta
         elide: Text.ElideRight
       }
 
@@ -702,7 +721,7 @@ Panel {
         text: "Searching…"
         color: root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
+        font.pixelSize: root.fontBody
         elide: Text.ElideRight
       }
 
@@ -712,7 +731,7 @@ Panel {
         text: root.saving ? "Saving…" : "Checking Jira credentials…"
         color: root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
+        font.pixelSize: root.fontBody
         elide: Text.ElideRight
       }
 
@@ -728,7 +747,7 @@ Panel {
           text: root.authenticated ? "Jira credentials" : "Connect to Jira"
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
+          font.pixelSize: root.fontHeading
           font.bold: true
           elide: Text.ElideRight
         }
@@ -739,7 +758,7 @@ Panel {
           text: root.authError
           color: bar ? bar.urgent : Color.urgent
           font.family: root.fontFamily
-          font.pixelSize: Style.font.body
+          font.pixelSize: root.fontBody
           wrapMode: Text.Wrap
         }
 
@@ -748,11 +767,13 @@ Panel {
           text: "Site"
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: root.fontMeta
           elide: Text.ElideRight
         }
 
         TextField {
+          font.family: root.fontFamily
+          font.pixelSize: root.fontBody
           id: siteField
           width: parent.width
           foreground: root.foreground
@@ -769,11 +790,13 @@ Panel {
           text: "Account email"
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: root.fontMeta
           elide: Text.ElideRight
         }
 
         TextField {
+          font.family: root.fontFamily
+          font.pixelSize: root.fontBody
           id: emailField
           width: parent.width
           foreground: root.foreground
@@ -790,13 +813,15 @@ Panel {
           text: "API token"
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: root.fontMeta
           elide: Text.ElideRight
         }
 
         // Stored with 0600 permissions outside the plugin; never read back
         // into the UI, which is why a blank field means "keep the stored one".
         TextField {
+          font.family: root.fontFamily
+          font.pixelSize: root.fontBody
           id: tokenField
           width: parent.width
           password: true
@@ -814,7 +839,7 @@ Panel {
           text: "Create a token at id.atlassian.com/manage-profile/security/api-tokens"
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: root.fontMeta
           wrapMode: Text.Wrap
         }
 
@@ -825,6 +850,8 @@ Panel {
           spacing: Style.space(6)
 
           Button {
+            fontFamily: root.fontFamily
+            fontSize: root.fontBody
             text: "Save and connect"
             foreground: root.foreground
             hasCursor: root.isAction("save")
@@ -832,6 +859,8 @@ Panel {
           }
 
           Button {
+            fontFamily: root.fontFamily
+            fontSize: root.fontBody
             visible: root.authenticated
             text: "Cancel"
             foreground: root.foreground
@@ -840,6 +869,8 @@ Panel {
           }
 
           Button {
+            fontFamily: root.fontFamily
+            fontSize: root.fontBody
             visible: root.hasStoredToken
             text: "Forget"
             foreground: root.foreground
@@ -869,12 +900,14 @@ Panel {
             text: root.authAccount !== "" ? "Signed in as " + root.authAccount : "Signed in"
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: root.fontMeta
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignRight
           }
 
           Button {
+            fontFamily: root.fontFamily
+            fontSize: root.fontBody
             id: credentialsButton
             text: "Change credentials"
             foreground: root.foreground
@@ -890,7 +923,7 @@ Panel {
         text: "Fetching…"
         color: root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
+        font.pixelSize: root.fontBody
         elide: Text.ElideRight
       }
 
@@ -900,7 +933,7 @@ Panel {
         text: root.errorText
         color: bar ? bar.urgent : Color.urgent
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
+        font.pixelSize: root.fontBody
         wrapMode: Text.Wrap
       }
 
@@ -916,7 +949,7 @@ Panel {
           text: root.results.length + (root.results.length === 1 ? " match" : " matches")
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: root.fontMeta
           elide: Text.ElideRight
         }
 
@@ -987,7 +1020,7 @@ Panel {
                       text: modelData.key + " · " + modelData.status
                       color: root.foreground
                       font.family: root.fontFamily
-                      font.pixelSize: Style.font.caption
+                      font.pixelSize: root.fontMeta
                       font.bold: true
                       elide: Text.ElideRight
                     }
@@ -1001,7 +1034,7 @@ Panel {
                       text: modelData.type
                       color: root.dim
                       font.family: root.fontFamily
-                      font.pixelSize: Style.font.caption
+                      font.pixelSize: root.fontMeta
                       horizontalAlignment: Text.AlignRight
                       elide: Text.ElideRight
                     }
@@ -1012,7 +1045,7 @@ Panel {
                     text: modelData.summary
                     color: root.foreground
                     font.family: root.fontFamily
-                    font.pixelSize: Style.font.body
+                    font.pixelSize: root.fontBody
                     elide: Text.ElideRight
                   }
                 }
@@ -1056,7 +1089,7 @@ Panel {
               text: root.issue ? root.issue.key + " · " + root.issue.status : ""
               color: root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
+              font.pixelSize: root.fontHeading
               font.bold: true
               elide: Text.ElideRight
             }
@@ -1069,7 +1102,7 @@ Panel {
               text: "Press Enter to open in browser"
               color: issueHover.hovered ? root.foreground : root.dim
               font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
+              font.pixelSize: root.fontMeta
             }
           }
 
@@ -1078,7 +1111,7 @@ Panel {
             text: root.issue ? root.issue.summary : ""
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.body
+            font.pixelSize: root.fontBody
             wrapMode: Text.Wrap
           }
 
@@ -1089,7 +1122,7 @@ Panel {
               : ""
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.body
+            font.pixelSize: root.fontBody
             wrapMode: Text.Wrap
           }
 
@@ -1099,7 +1132,7 @@ Panel {
             text: root.issue ? "Updated " + Model.formatUpdated(root.issue.updated) : ""
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: root.fontMeta
             elide: Text.ElideRight
           }
         }
@@ -1109,6 +1142,8 @@ Panel {
           spacing: Style.space(6)
 
           Button {
+            fontFamily: root.fontFamily
+            fontSize: root.fontBody
             visible: root.results.length > 0
             text: "Back to results"
             foreground: root.foreground

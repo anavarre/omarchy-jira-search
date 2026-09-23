@@ -1,8 +1,9 @@
 # Jira Search
 
-An [Omarchy](https://omarchy.org) bar widget for Jira Cloud. Search by text, by
+An [Omarchy](https://omarchy.org) plugin for Jira Cloud. Search by text, by
 JQL or by ticket ID, stack searches as filters that narrow one another, and
-open any issue's metadata without leaving the bar.
+open any issue's metadata without leaving the panel. The search window opens
+centered on screen, spotlight style.
 
 ![Jira Search](omarchy-jira-search.png)
 
@@ -15,12 +16,11 @@ cp -r . ~/.config/omarchy/plugins/anavarre.jira-search
 omarchy plugin validate ~/.config/omarchy/plugins/anavarre.jira-search
 omarchy plugin enable anavarre.jira-search
 omarchy-shell shell rescanPlugins
-omarchy bar move anavarre.jira-search --section center
 ```
 
 ### Keybinding
 
-To summon the panel without reaching for the bar, add a binding to
+The panel is summoned by keybinding. Add one to
 `~/.config/hypr/bindings.lua`:
 
 ```lua
@@ -32,7 +32,7 @@ with the field already focused.
 
 ## Connect
 
-Open the widget and fill in **Site**, **Account email** and **API token**, then
+Open the panel and fill in **Site**, **Account email** and **API token**, then
 *Save and connect*. Credentials are checked against the Jira API right away.
 Create a token at
 <https://id.atlassian.com/manage-profile/security/api-tokens>.
@@ -42,8 +42,10 @@ credentials** to update it and **Forget** to delete what was stored.
 
 ## Usage
 
-Click the Jira icon in the bar (or run
-`omarchy-shell shell summon anavarre.jira-search '{}'`) and start typing.
+Press `SUPER + SHIFT + J` (or run
+`omarchy-shell shell summon anavarre.jira-search '{}'`) and start typing. The
+window opens in the middle of the screen; click anywhere outside it or press
+`ESC` to close it.
 
 | Input | What happens |
 | --- | --- |
@@ -101,7 +103,7 @@ search.
 
 ## Credentials and storage
 
-The widget uses the Jira Cloud REST API with
+The plugin uses the Jira Cloud REST API with
 [basic auth](https://developer.atlassian.com/cloud/jira/software/basic-auth-for-rest-apis/)
 and refuses to look anything up until the credentials verify against
 `GET /rest/api/3/myself`. A 401 or 403 during a lookup returns you to the form
@@ -122,7 +124,7 @@ a current setup keeps working untouched:
 | Account | `$JIRA_EMAIL` → saved `config` → `login:` in `~/.config/.jira/.config.yml` |
 | API token | `$JIRA_API_TOKEN` → saved `token` file → `~/.jira-api-token` |
 
-The widget's shell does not inherit `~/.bashrc`, so a `$JIRA_API_TOKEN`
+The plugin's shell does not inherit `~/.bashrc`, so a `$JIRA_API_TOKEN`
 exported there is invisible to it — that is what the form is for. The `jira`
 CLI itself is not required; only its config file is read, if present.
 
@@ -134,7 +136,7 @@ omarchy plugin remove anavarre.jira-search --yes
 omarchy-shell shell rescanPlugins
 ```
 
-`disable` takes the widget out of the bar; `remove` deletes
+`disable` turns the plugin off; `remove` deletes
 `~/.config/omarchy/plugins/anavarre.jira-search`.
 
 That leaves your credentials on disk. To remove those too — or use **Forget**
