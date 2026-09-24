@@ -7,17 +7,10 @@
   "license": "MIT",
   "description": "Search Jira by text, JQL or ticket ID in a centered search window, and view an issue's metadata.",
   "kinds": [
-    "bar-widget"
+    "panel"
   ],
   "entryPoints": {
-    "barWidget": "BarWidget.qml"
+    "panel": "Panel.qml"
   },
-  "barWidget": {
-    "displayName": "Jira Search",
-    "description": "Search Jira by text, JQL or ticket ID and show an issue's summary, status, assignee and priority.",
-    "category": "Productivity",
-    "aliases": ["jira", "ticket", "issue"],
-    "allowMultiple": false,
-    "defaultSection": "center"
-  }
+  "keepLoaded": true
 }

@@ -10,8 +10,11 @@ Panel {
   moduleName: "anavarre.jira-search"
   manageIpc: false
 
-  property var anchorItem: null
-  property var hostWidget: null
+  // Injected by the shell when it loads a panel-kind plugin. `shell` is how
+  // the closed state gets reported back, so the shell's own open/toggle
+  // bookkeeping matches what is on screen.
+  property var shell: null
+  property var manifest: null
 
   property bool loading: false
   property string errorText: ""
@@ -97,13 +100,19 @@ Panel {
   readonly property int fontBody: Style.font.heading
   readonly property int fontMeta: Style.font.title
 
-  function open() { root.controller.show() }
-  function close() { root.controller.hide() }
+  // Guards the close() -> shell.hide() -> close() round trip: the shell calls
+  // close() back on the plugin as part of hiding it.
+  property bool closing: false
 
-  function switchPanel(direction) {
-    if (root.bar && typeof root.bar.switchPanelFrom === "function")
-      return root.bar.switchPanelFrom(root.hostWidget || root, direction)
-    return false
+  function open() { root.controller.show() }
+
+  function close() {
+    if (root.closing) return
+    root.closing = true
+    root.controller.hide()
+    if (root.shell && typeof root.shell.hide === "function")
+      root.shell.hide((root.manifest && root.manifest.id) || root.moduleName)
+    root.closing = false
   }
 
   // Fills the form with whatever is already resolved (site and account only —
@@ -575,9 +584,7 @@ Panel {
 
   CenteredPanel {
     id: panel
-    anchorItem: root.anchorItem
-    owner: root.hostWidget || root
-    bar: root.bar
+    owner: root
     open: root.opened
     focusTarget: root.showSettings ? siteField : field
     contentWidth: root.cardWidth
@@ -687,9 +694,6 @@ Panel {
           if (root.handleNavKey(event, true)) event.accepted = true
         }
         Keys.onEscapePressed: root.back()
-        Keys.onTabPressed: function(event) {
-          if (!root.switchPanel(event.modifiers & Qt.ShiftModifier ? -1 : 1)) event.accepted = false
-        }
       }
 
       Text {

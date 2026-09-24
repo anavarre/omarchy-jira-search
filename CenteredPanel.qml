@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
@@ -15,13 +16,14 @@ import qs.Ui
 // verticalContentInset), same popout coordination and focus priming — so the
 // panel content does not have to know which of the two it is living in.
 //
-// `anchorItem` is still required: it is how we find out which output the
-// panel belongs to.
+// Nothing anchors it: the card lands on the output Hyprland has focused, so
+// a keyboard summon opens it where the user is looking. `anchorItem` is
+// optional and only used as a fallback when a host widget supplies one.
 PanelWindow {
   id: root
 
-  required property Item anchorItem
-  required property QtObject bar
+  property Item anchorItem: null
+  property QtObject bar: null
   property var owner: null
   property int margin: Style.gapsOut
   property int padding: Style.spacing.popupPadding
@@ -43,6 +45,20 @@ PanelWindow {
   readonly property var coordinatorKey: owner || root
   readonly property var anchorWindow: anchorItem ? anchorItem.QsWindow.window : null
 
+  // The output the card opens on. An anchor wins when there is one; otherwise
+  // it is whichever output Hyprland has focused, resolved when the panel
+  // opens so a card already on screen does not jump between monitors.
+  property var focusedScreen: null
+
+  function resolveFocusedScreen() {
+    var monitor = Hyprland.focusedMonitor
+    var name = monitor ? String(monitor.name || "") : ""
+    if (!name) return
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++)
+      if (String(screens[i].name) === name) { root.focusedScreen = screens[i]; return }
+  }
+
   function close() {
     if (owner && "close" in owner) owner.close()
     else root.open = false
@@ -54,7 +70,7 @@ PanelWindow {
 
   // --- screen + lifetime ---------------------------------------------------
 
-  screen: anchorWindow ? anchorWindow.screen : null
+  screen: anchorWindow ? anchorWindow.screen : focusedScreen
   visible: open || card.opacity > 0 || popoutSwitching
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
@@ -117,6 +133,7 @@ PanelWindow {
 
   onOpenChanged: {
     if (open) {
+      resolveFocusedScreen()
       focusPrimed = false
       beginFocusPrime()
       if (focusTarget) Qt.callLater(function() {
@@ -139,6 +156,8 @@ PanelWindow {
       if (popoutSwitchClosing) closeSwitchTimer.restart()
     }
   }
+
+  Component.onCompleted: resolveFocusedScreen()
 
   Timer {
     id: focusPrimeTimer

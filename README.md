@@ -5,6 +5,9 @@ JQL or by ticket ID, stack searches as filters that narrow one another, and
 open any issue's metadata without leaving the panel. The search window opens
 centered on screen, spotlight style.
 
+It is a keyboard launcher, not a bar widget: nothing is added to the bar, and
+the window is summoned by keybinding.
+
 ![Jira Search](omarchy-jira-search.png)
 
 Requires `curl`.
@@ -20,7 +23,7 @@ omarchy-shell shell rescanPlugins
 
 ### Keybinding
 
-The panel is summoned by keybinding. Add one to
+The plugin has no bar icon, so a keybinding is the only way in. Add one to
 `~/.config/hypr/bindings.lua`:
 
 ```lua
