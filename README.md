@@ -8,7 +8,7 @@ centered on screen, spotlight style.
 It is a keyboard launcher, not a bar widget: nothing is added to the bar, and
 the window is summoned by keybinding.
 
-![Jira Search](omarchy-jira-search.png)
+![Jira Search](preview.png)
 
 Requires `curl`.
 
