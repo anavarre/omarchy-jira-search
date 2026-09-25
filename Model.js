@@ -18,7 +18,13 @@ var searchLimit = 20
 // $JIRA_API_TOKEN or a token file. curl reads `user =` from a config file on
 // stdin (-K -) so the token never appears in argv or in `ps`.
 //
-// Exit codes: 10 no site, 11 no account, 12 no token, 20 request failed.
+// The site must be https: Basic auth sends the token with every request, so a
+// plaintext site would put it on the wire. A bare host gets https:// added;
+// any other scheme is refused before credentials are touched, and curl is
+// held to https (proto =https) so nothing downgrades mid-request.
+//
+// Exit codes: 10 no site, 11 no account, 12 no token, 13 site not https,
+// 20 request failed.
 // On success the body is printed with the HTTP status on its own last line.
 var prelude = [
   'set -u',
@@ -40,17 +46,18 @@ var prelude = [
   'fi',
   'server="${server%/}"',
   '[ -n "$server" ] || exit 10',
+  'case "$server" in https://*) ;; *://*) exit 13 ;; *) server="https://$server" ;; esac',
   '[ -n "$email" ] || exit 11',
   '[ -n "$token" ] || exit 12',
   'api() {',
-  '  printf \'user = "%s:%s"\\nsilent\\nshow-error\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
+  '  printf \'user = "%s:%s"\\nproto = "=https"\\nsilent\\nshow-error\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
   '    curl -K - "$server$1" || exit 20',
   '}',
   // Same, but with query parameters curl encodes itself (-G --data-urlencode),
   // so a JQL string with spaces and quotes survives the trip.
   'apiq() {',
   '  path="$1"; shift',
-  '  printf \'user = "%s:%s"\\nsilent\\nshow-error\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
+  '  printf \'user = "%s:%s"\\nproto = "=https"\\nsilent\\nshow-error\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
   '    curl -K - -G "$@" "$server$path" || exit 20',
   '}'
 ].join("\n")
@@ -76,7 +83,7 @@ function saveCommand() {
     'IFS= read -r server || true',
     'IFS= read -r email || true',
     'IFS= read -r token || true',
-    'case "$server" in http://*|https://*) ;; *) server="https://$server" ;; esac',
+    'case "$server" in https://*) ;; *://*) exit 13 ;; *) server="https://$server" ;; esac',
     'server="${server%/}"',
     'mkdir -p "$store" && chmod 700 "$store"',
     'printf \'server=%s\\nemail=%s\\n\' "$server" "$email" > "$store/config"',
@@ -360,6 +367,7 @@ function authMessage(exitCode, status) {
   if (exitCode === 10) return "No Jira site configured. " + setupHint
   if (exitCode === 11) return "No Jira account configured. " + setupHint
   if (exitCode === 12) return "No API token found. " + setupHint
+  if (exitCode === 13) return "The Jira site must use https:// so the API token is never sent in plaintext."
   if (exitCode === 20) return "Could not reach the Jira site. Check the URL and your connection."
   if (status === 401) return "Jira rejected these credentials (401). Check the account email and API token."
   if (status === 403) return "Jira refused the request (403). The account may need to re-authenticate or lacks permission."
@@ -389,5 +397,5 @@ function lookupMessage(exitCode, status, body) {
 
 // A failure the panel should treat as "credentials are no longer good".
 function isAuthFailure(exitCode, status) {
-  return exitCode === 10 || exitCode === 11 || exitCode === 12 || status === 401 || status === 403
+  return exitCode === 10 || exitCode === 11 || exitCode === 12 || exitCode === 13 || status === 401 || status === 403
 }
