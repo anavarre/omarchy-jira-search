@@ -56,6 +56,7 @@ window opens in the middle of the screen; click anywhere outside it or press
 | **Enter** | Pins what you typed as a filter chip and empties the field, so the next thing you type narrows the same list |
 | A full ticket ID (`ABC-123`, any case), with no filters pinned | Skips the list and shows that issue's metadata, so you can see what it is before leaving |
 | JQL (`status = Done`, `updated >= -7d`, `ORDER BY created DESC`) | Sent to Jira verbatim — press **Enter** to add it as a filter |
+| **?** next to the field (or **?** / **F1** on the keyboard) | Lists common JQL — `project = "ABC"`, `reporter = currentUser()`, `sprint IN openSprints()` and more. Pick one to put it in the field, then **Enter** to add it |
 
 ### Stacking filters
 
@@ -101,7 +102,9 @@ search.
 - On an issue card the cursor starts on **Open in browser**, so Enter opens it
   in your browser. **Left/Right** move between buttons, **Up** leaves the row.
 - **Backspace** in an empty field removes the last filter chip.
-- **Escape** steps back: out of the button row, then from an issue to its
+- **?** in an empty field, **F1**, or the **?** button shows or hides the JQL
+  examples; **Up/Down** highlight one and **Enter** puts it in the field.
+- **Escape** steps back: out of the JQL examples or the button row, then from an issue to its
   results, then clears the field, then the filters, then closes the panel.
 
 ## Credentials and storage

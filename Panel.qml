@@ -42,7 +42,16 @@ Panel {
   // is run verbatim. Half-written JQL is a syntax error, and a syntax error per
   // keystroke is noise, so JQL waits for Enter instead of searching as you type.
   property bool isJql: false
-  readonly property bool showResults: root.issue === null && root.results.length > 0
+  readonly property bool showResults: root.issue === null && root.results.length > 0 && !root.showHelp
+
+  // The "?" next to the field: a list of JQL worth knowing, for when the
+  // syntax is the thing in the way. It covers the results and the card while
+  // it is up rather than pushing them down, and picking an example puts it in
+  // the field — JQL waits for Enter, so nothing runs until it is confirmed.
+  property bool helpOpen: false
+  property int helpSelected: -1
+  readonly property bool showHelp: root.helpOpen && root.authenticated && !root.showSettings
+  readonly property var jqlExamples: Model.jqlExamples
 
   // The draft only joins the search once it is long enough to mean something;
   // short of that the committed filters search on their own. JQL still waits
@@ -296,8 +305,45 @@ Panel {
     debounce.stop()
   }
 
+  function toggleHelp() {
+    root.helpOpen = !root.helpOpen
+    root.helpSelected = -1
+    Qt.callLater(function() { field.forceActiveFocus() })
+  }
+
+  function pickExample(index) {
+    if (index < 0 || index >= root.jqlExamples.length) return
+    root.helpOpen = false
+    root.helpSelected = -1
+    field.text = root.jqlExamples[index].jql
+    field.cursorPosition = field.text.length
+    Qt.callLater(function() { field.forceActiveFocus() })
+  }
+
+  // Up/Down walk the examples and Enter picks one, the same way they walk
+  // the results when the list is down.
+  function handleHelpKey(event) {
+    if (!root.showHelp) return false
+    if (event.key === Qt.Key_Down) {
+      root.helpSelected = Math.min(root.helpSelected + 1, root.jqlExamples.length - 1)
+      helpView.revealSelected()
+      return true
+    }
+    if (event.key === Qt.Key_Up) {
+      root.helpSelected = Math.max(root.helpSelected - 1, -1)
+      helpView.revealSelected()
+      return true
+    }
+    if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.helpSelected >= 0) {
+      root.pickExample(root.helpSelected)
+      return true
+    }
+    return false
+  }
+
   // Back out of a ticket to the list it came from, if there is one.
   function back() {
+    if (root.showHelp) { root.helpOpen = false; return }
     if (root.issue !== null && root.results.length > 0) { root.issue = null; return }
     if (field.text !== "") { field.text = ""; return }
     if (root.filters.length > 0) { root.clearFilters(); return }
@@ -314,7 +360,7 @@ Panel {
       if (root.hasStoredToken) form.push("forget")
       return form
     }
-    if (!root.authenticated || root.loading) return []
+    if (!root.authenticated || root.loading || root.showHelp) return []
     if (root.issue !== null) {
       var view = []
       if (root.results.length > 0) view.push("back")
@@ -410,6 +456,7 @@ Panel {
   // ready to type into whether it was summoned by click or by shell command.
   onOpenedChanged: {
     if (opened) {
+      root.helpOpen = false
       if (root.authState === "unknown" || root.authState === "error") root.checkAuth()
       if (root.showSettings) root.loadConfig()
       field.selectAll()
@@ -656,44 +703,172 @@ Panel {
         }
       }
 
-      TextField {
-        font.family: root.fontFamily
-        font.pixelSize: root.fontBody
-        id: field
+      // The field, with the "?" that opens the JQL examples on its right.
+      Item {
         width: parent.width
+        height: Math.max(field.height, helpButton.height)
         visible: root.authenticated && !root.showSettings
-        foreground: root.foreground
-        placeholderText: root.filters.length > 0
-          ? "Narrow it further — text or JQL, Enter to add"
-          : "Enter a ticket ID, search string or JQL."
-        onAccepted: root.submit(text)
-        onTextChanged: {
-          if (!root.authenticated) return
-          root.isJql = Model.looksLikeJql(text)
-          var trimmed = text.trim()
-          root.resetSelection()
-          if (trimmed === "" && root.filters.length === 0) {
-            root.clearResults()
-            root.issue = null
-            return
+
+        TextField {
+          font.family: root.fontFamily
+          font.pixelSize: root.fontBody
+          id: field
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          width: parent.width - helpButton.width - Style.space(8)
+          foreground: root.foreground
+          placeholderText: root.filters.length > 0
+            ? "Narrow it further — text or JQL, Enter to add"
+            : "Enter a ticket ID, search string or JQL."
+          onAccepted: root.submit(text)
+          onTextChanged: {
+            if (!root.authenticated) return
+            // Typing is a search again, so the examples make way for it.
+            root.helpOpen = false
+            root.isJql = Model.looksLikeJql(text)
+            var trimmed = text.trim()
+            root.resetSelection()
+            if (trimmed === "" && root.filters.length === 0) {
+              root.clearResults()
+              root.issue = null
+              return
+            }
+            // JQL waits for Enter; a draft too short to search on leaves the
+            // committed filters to search by themselves.
+            if (root.isJql) { debounce.stop(); return }
+            if (trimmed.length < root.minQuery && root.filters.length === 0) { debounce.stop(); return }
+            debounce.restart()
           }
-          // JQL waits for Enter; a draft too short to search on leaves the
-          // committed filters to search by themselves.
-          if (root.isJql) { debounce.stop(); return }
-          if (trimmed.length < root.minQuery && root.filters.length === 0) { debounce.stop(); return }
-          debounce.restart()
-        }
-        Keys.onPressed: function(event) {
-          // Backspace at the start of an empty field takes the last chip back
-          // off, the way it does in every other chip field.
-          if (event.key === Qt.Key_Backspace && field.text === "" && root.filters.length > 0) {
-            root.removeFilter(root.filters.length - 1)
-            event.accepted = true
-            return
+          Keys.onPressed: function(event) {
+            // Backspace at the start of an empty field takes the last chip back
+            // off, the way it does in every other chip field.
+            if (event.key === Qt.Key_Backspace && field.text === "" && root.filters.length > 0) {
+              root.removeFilter(root.filters.length - 1)
+              event.accepted = true
+              return
+            }
+            // "?" on an empty field opens the examples; once there is text it
+            // is just a character, so a search can still end in one.
+            if (event.key === Qt.Key_F1 || (event.text === "?" && field.text === "")) {
+              root.toggleHelp()
+              event.accepted = true
+              return
+            }
+            if (root.handleHelpKey(event)) { event.accepted = true; return }
+            if (root.handleNavKey(event, true)) event.accepted = true
           }
-          if (root.handleNavKey(event, true)) event.accepted = true
+          Keys.onEscapePressed: root.back()
         }
-        Keys.onEscapePressed: root.back()
+
+        Rectangle {
+          id: helpButton
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          width: Math.round(field.height * 0.8)
+          height: width
+          radius: width / 2
+          color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b,
+                         root.showHelp ? 0.22 : (helpHover.hovered ? 0.16 : 0.08))
+          border.width: Math.max(1, Style.space(1))
+          border.color: root.showHelp || helpHover.hovered ? root.foreground : root.dim
+
+          HoverHandler { id: helpHover; cursorShape: Qt.PointingHandCursor }
+          TapHandler { onTapped: root.toggleHelp() }
+
+          Text {
+            anchors.centerIn: parent
+            text: "?"
+            color: root.showHelp || helpHover.hovered ? root.foreground : root.dim
+            font.family: root.fontFamily
+            font.pixelSize: root.fontBody
+            font.bold: true
+          }
+        }
+      }
+
+      // JQL examples, one per row: the query on the left, what it finds on
+      // the right. A click or Enter puts the query in the field.
+      Column {
+        width: parent.width
+        spacing: Style.space(2)
+        visible: root.showHelp
+
+        Text {
+          width: parent.width
+          text: "JQL examples — pick one to put it in the field, then Enter to add it as a filter. Closed tickets stay hidden unless the query mentions a status."
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: root.fontMeta
+          wrapMode: Text.Wrap
+        }
+
+        Flickable {
+          id: helpView
+          width: parent.width
+          height: Math.min(helpList.implicitHeight, root.maxResultsHeight)
+          contentHeight: helpList.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+
+          function revealSelected() {
+            if (root.helpSelected < 0 || root.helpSelected >= helpList.children.length) return
+            var item = helpList.children[root.helpSelected]
+            if (item.y < contentY) contentY = item.y
+            else if (item.y + item.height > contentY + height) contentY = item.y + item.height - height
+          }
+
+          Column {
+            id: helpList
+            width: helpView.width
+            spacing: Style.space(2)
+
+            Repeater {
+              model: root.jqlExamples
+
+              Rectangle {
+                required property int index
+                required property var modelData
+
+                width: parent.width
+                height: Math.max(exampleJql.implicitHeight, exampleAbout.implicitHeight) + Style.space(8)
+                radius: Style.space(4)
+                color: index === root.helpSelected || exampleHover.hovered
+                  ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+                  : "transparent"
+
+                HoverHandler { id: exampleHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.pickExample(index) }
+
+                Text {
+                  id: exampleJql
+                  x: Style.space(6)
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Math.min(implicitWidth, parent.width * 0.6)
+                  text: modelData.jql
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: root.fontMeta
+                  font.bold: true
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  id: exampleAbout
+                  anchors.right: parent.right
+                  anchors.rightMargin: Style.space(6)
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: parent.width - exampleJql.width - Style.space(20)
+                  text: modelData.about
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: root.fontMeta
+                  horizontalAlignment: Text.AlignRight
+                  elide: Text.ElideRight
+                }
+              }
+            }
+          }
+        }
       }
 
       Text {
@@ -890,7 +1065,7 @@ Panel {
         height: accountRow.height
         visible: root.authenticated && !root.showSettings && root.issue === null && !root.loading
                  && !root.searching && root.errorText === "" && root.results.length === 0
-                 && root.filters.length === 0
+                 && root.filters.length === 0 && !root.showHelp
 
         Row {
           id: accountRow
@@ -933,7 +1108,7 @@ Panel {
 
       Text {
         width: parent.width
-        visible: !root.loading && root.errorText !== ""
+        visible: !root.loading && root.errorText !== "" && !root.showHelp
         text: root.errorText
         color: bar ? bar.urgent : Color.urgent
         font.family: root.fontFamily
@@ -1062,7 +1237,7 @@ Panel {
       Column {
         width: parent.width
         spacing: Style.space(6)
-        visible: !root.loading && root.issue !== null
+        visible: !root.loading && root.issue !== null && !root.showHelp
 
         // The card is the ticket, so the card is the thing you press: Enter
         // opens it without a button to reach for first, and a click anywhere

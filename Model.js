@@ -168,9 +168,10 @@ function quoteJql(value) {
 // nobody types by accident in a free-text search, so it is a field followed by
 // a comparison operator ("status = Done", "updated >= -7d", "summary ~ login"),
 // one of the shapes that has no operator symbol ("assignee in (…)",
-// "fixVersion is empty"), or a bare sort ("ORDER BY created DESC"). Prose like
-// "what is broken" has none of those and stays a text search.
-var jqlPattern = /(^|[\s(!])[A-Za-z][\w.]*\s*(!?=|!?~|<=?|>=?|\bin\s*\(|\bis\s+(not\s+)?(empty|null)\b)/i
+// "sprint in openSprints()", "fixVersion is empty"), or a bare sort
+// ("ORDER BY created DESC"). Prose like "what is broken" has none of those and
+// stays a text search.
+var jqlPattern = /(^|[\s(!])[A-Za-z][\w.]*\s*(!?=|!?~|<=?|>=?|\bin\s*([A-Za-z]\w*)?\(|\bis\s+(not\s+)?(empty|null)\b)/i
 var orderByPattern = /\border\s+by\b/i
 
 function looksLikeJql(query) {
@@ -179,6 +180,30 @@ function looksLikeJql(query) {
   if (orderByPattern.test(q)) return true
   return jqlPattern.test(q)
 }
+
+// What the "?" in the panel lists: JQL people reach for most, drawn from
+// Atlassian's JQL cheat sheet. Each one has to pass looksLikeJql, or picking
+// it would run as a text search instead. A bare sort is not a search on its
+// own, so that one is said to go with another filter.
+var jqlExamples = [
+  { jql: 'project = "ABC"', about: "Tickets in one project" },
+  { jql: "assignee = currentUser()", about: "Assigned to you" },
+  { jql: "reporter = currentUser()", about: "Reported by you" },
+  { jql: "watcher = currentUser()", about: "Tickets you watch" },
+  { jql: "assignee IS EMPTY", about: "Nobody assigned yet" },
+  { jql: "sprint IN openSprints()", about: "In an active sprint" },
+  { jql: 'status = "In Progress"', about: "In one workflow status" },
+  { jql: "priority IN (High, Highest)", about: "Any of several values" },
+  { jql: "issuetype = Bug", about: "One issue type" },
+  { jql: 'labels = "customer"', about: "Carrying a label" },
+  { jql: 'summary ~ "login error"', about: "Words in the summary only" },
+  { jql: "created >= -7d", about: "Created in the last 7 days" },
+  { jql: "updated >= startOfDay()", about: "Touched today" },
+  { jql: "duedate < now()", about: "Past their due date" },
+  { jql: "resolved >= startOfWeek()", about: "Resolved this week" },
+  { jql: 'status WAS "Resolved" AND status != "Resolved"', about: "Reopened after being resolved" },
+  { jql: "ORDER BY created DESC", about: "Newest first — add after another filter" }
+]
 
 // --- Filters -----------------------------------------------------------
 //
@@ -240,7 +265,7 @@ function filterClause(filter) {
 // Finished work is rarely what a search is for, so it is left out by default.
 // The moment a JQL filter says anything about state itself — a status, a
 // status category, a resolution — that is the intent, and nothing is added.
-var statusFieldPattern = /\b(status|statusCategory|resolution|resolutiondate)\b/i
+var statusFieldPattern = /\b(status|statusCategory|resolution|resolutiondate|resolved)\b/i
 
 var openOnlyClause = "statusCategory != Done"
 
