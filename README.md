@@ -175,6 +175,19 @@ secret-tool clear service anavarre.jira-search kind api-token
 Also drop the `o.bind(...)` line from `~/.config/hypr/bindings.lua` if you
 added one.
 
+## Development
+
+```bash
+./tests/run
+```
+
+Checks the manifest, then runs the Model.js unit tests and the shell commands
+it builds under Node's test runner. The commands run against fakes for
+`curl`, `secret-tool` and `timeout` in `tests/fakes`, in a throwaway `HOME`,
+so no test reads real credentials, touches the keyring or reaches the network.
+Fixtures in `tests/fixtures` are fictional. Needs `bash`, `python3` and Node
+18 or later; CI runs the same script on every push and pull request.
+
 ## License
 
 MIT

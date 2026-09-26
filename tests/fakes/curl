@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Stands in for curl. Records the config it was fed on stdin and its argv,
+# then answers as FAKE_CURL says: the body in FAKE_CURL_BODY followed by
+# FAKE_CURL_STATUS (the write-out line), or a failure curl itself would report.
+cat > "$FAKE_DIR/curl.cfg"
+printf '%s\n' "$@" > "$FAKE_DIR/curl.argv"
+case "${FAKE_CURL:-ok}" in
+  ok)        cat "$FAKE_CURL_BODY"; printf '\n%s' "${FAKE_CURL_STATUS:-200}" ;;
+  timeout)   echo "curl: (28) Operation timed out" >&2; exit 28 ;;
+  refused)   echo "curl: (63) Maximum file size exceeded" >&2; exit 63 ;;
+  offline)   echo "curl: (6) Could not resolve host" >&2; exit 6 ;;
+  oversize)  head -c 1100000 /dev/zero | tr '\0' 'x'; printf '\n200' ;;
+esac

@@ -1,0 +1,1 @@
+{"key":"ABC-42","self":"https://elsewhere.example.test/rest/api/3/issue/10042","fields":{"summary":"Fictional login page times out","status":{"name":"In Progress"},"issuetype":{"name":"Bug"},"priority":{"name":"High"},"assignee":{"displayName":"Dana Example"},"reporter":{"displayName":"Sam Sample"},"project":{"name":"Alpha Project"},"updated":"2026-09-19T00:13:00.000+0000"}}

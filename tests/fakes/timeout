@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# macOS has no timeout(1); the tests only need it to run the command.
+shift
+exec "$@"
