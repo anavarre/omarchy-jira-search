@@ -29,6 +29,7 @@ var searchLimit = 20
 // that size in the shell in case curl only learns the size mid-transfer.
 //
 // Exit codes: 10 no site, 11 no account, 12 no token, 13 site not https,
+// 14 settings could not be written or removed,
 // 20 request failed, 21 timed out, 22 response too large.
 // On success the resolved site is printed on the first line, then the body,
 // then the HTTP status on its own last line.
@@ -36,6 +37,14 @@ var connectTimeout = 10
 var maxTime = 20
 var maxBytes = 1048576
 
+// Every command below runs as `bash -c SCRIPT jira-search ARG...`. SCRIPT is
+// built only from the literals in this file and the numeric limits above;
+// nothing typed in the panel or returned by Jira is ever spliced into it.
+// Runtime values reach the shell another way: a ticket key or JQL string as
+// a positional argument ("$1", always quoted), form values on stdin, and
+// credentials from the environment or files the shell reads itself. Keep it
+// that way — string-building user input into SCRIPT would turn a search box
+// into a shell prompt.
 var prelude = [
   'set -u',
   'store="${JIRA_SEARCH_DIR:-$HOME/.config/omarchy/jira-search}"',
@@ -108,6 +117,8 @@ function configCommand() {
 
 // Writes what the form collected. Values arrive on stdin, one per line, so the
 // token never appears in argv; a blank third line keeps the stored token.
+// Each write is checked, so a full disk or a read-only directory fails with 14
+// instead of reporting success and leaving a half-written config behind.
 function saveCommand() {
   return ["bash", "-c", [
     'set -u',
@@ -118,10 +129,13 @@ function saveCommand() {
     'IFS= read -r token || true',
     'case "$server" in https://*) ;; *://*) exit 13 ;; *) server="https://$server" ;; esac',
     'server="${server%/}"',
-    'mkdir -p "$store" && chmod 700 "$store"',
-    'printf \'server=%s\\nemail=%s\\n\' "$server" "$email" > "$store/config"',
-    'chmod 600 "$store/config"',
-    'if [ -n "$token" ]; then printf \'%s\' "$token" > "$store/token"; chmod 600 "$store/token"; fi',
+    'mkdir -p "$store" && chmod 700 "$store" || exit 14',
+    'printf \'server=%s\\nemail=%s\\n\' "$server" "$email" > "$store/config" || exit 14',
+    'chmod 600 "$store/config" || exit 14',
+    'if [ -n "$token" ]; then',
+    '  printf \'%s\' "$token" > "$store/token" || exit 14',
+    '  chmod 600 "$store/token" || exit 14',
+    'fi',
     '[ -s "$store/token" ] || [ -n "${JIRA_API_TOKEN:-}" ] || exit 12'
   ].join("\n")]
 }
@@ -131,7 +145,9 @@ function saveCommand() {
 function forgetCommand() {
   return ["bash", "-c", [
     'store="${JIRA_SEARCH_DIR:-$HOME/.config/omarchy/jira-search}"',
-    'rm -f "$store/config" "$store/token"'
+    'rm -f "$store/config" "$store/token" || exit 14',
+    // rm -f is quiet about what it could not remove, so check what is left.
+    '[ ! -e "$store/config" ] && [ ! -e "$store/token" ] || exit 14'
   ].join("\n")]
 }
 
@@ -470,6 +486,7 @@ function authMessage(exitCode, status) {
   if (exitCode === 11) return "No Jira account configured. " + setupHint
   if (exitCode === 12) return "No API token found. " + setupHint
   if (exitCode === 13) return "The Jira site must use https:// so the API token is never sent in plaintext."
+  if (exitCode === 14) return "Could not update the saved settings in ~/.config/omarchy/jira-search. Check that it is writable."
   if (exitCode === 20) return "Could not reach the Jira site. Check the URL and your connection."
   if (exitCode === 21) return "Jira took too long to answer (over " + maxTime + "s). Try again shortly."
   if (exitCode === 22) return "Jira sent a response too large to read (over " + Math.round(maxBytes / 1048576) + " MB)."

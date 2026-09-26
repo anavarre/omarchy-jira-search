@@ -587,7 +587,14 @@ Panel {
     id: forgetProcess
     running: false
     command: []
-    onExited: function() {
+    onExited: function(exitCode) {
+      // Clearing the form after a failed delete would suggest the token is
+      // gone when it is still on disk.
+      if (exitCode !== 0) {
+        root.authState = "error"
+        root.authError = Model.authMessage(exitCode, 0)
+        return
+      }
       siteField.text = ""
       emailField.text = ""
       tokenField.text = ""
