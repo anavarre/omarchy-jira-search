@@ -75,7 +75,7 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
 
-  WlrLayershell.namespace: "omarchy-centered-panel"
+  WlrLayershell.namespace: "anavarre-jira-search"
   WlrLayershell.layer: WlrLayer.Overlay
   // Focus follows `open`, not `visible`: the surface stays mapped through the
   // fade-out so the animation has something to animate, but keyboard and
@@ -208,7 +208,7 @@ PanelWindow {
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 
-        WlrLayershell.namespace: "omarchy-centered-panel-dismiss"
+        WlrLayershell.namespace: "anavarre-jira-search-dismiss"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
