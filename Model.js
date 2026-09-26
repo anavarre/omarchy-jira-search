@@ -23,9 +23,18 @@ var searchLimit = 20
 // any other scheme is refused before credentials are touched, and curl is
 // held to https (proto =https) so nothing downgrades mid-request.
 //
+// Every request is bounded, because the panel collects curl's whole stdout in
+// memory: curl gives up after maxTime seconds (connectTimeout of them to
+// connect) and refuses a body over maxBytes, and the output is also cut at
+// that size in the shell in case curl only learns the size mid-transfer.
+//
 // Exit codes: 10 no site, 11 no account, 12 no token, 13 site not https,
-// 20 request failed.
+// 20 request failed, 21 timed out, 22 response too large.
 // On success the body is printed with the HTTP status on its own last line.
+var connectTimeout = 10
+var maxTime = 20
+var maxBytes = 1048576
+
 var prelude = [
   'set -u',
   'store="${JIRA_SEARCH_DIR:-$HOME/.config/omarchy/jira-search}"',
@@ -49,16 +58,22 @@ var prelude = [
   'case "$server" in https://*) ;; *://*) exit 13 ;; *) server="https://$server" ;; esac',
   '[ -n "$email" ] || exit 11',
   '[ -n "$token" ] || exit 12',
-  'api() {',
-  '  printf \'user = "%s:%s"\\nproto = "=https"\\nsilent\\nshow-error\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
-  '    curl -K - "$server$1" || exit 20',
+  // head exits at the cap (plus room for the status line), so curl's next
+  // write fails (23) instead of streaming on; 63 is curl's own size refusal.
+  'fetch() {',
+  '  printf \'user = "%s:%s"\\nproto = "=https"\\nsilent\\nshow-error\\nconnect-timeout = ' + connectTimeout +
+    '\\nmax-time = ' + maxTime + '\\nmax-filesize = ' + maxBytes +
+    '\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
+  '    curl -K - "$@" | head -c ' + (maxBytes + 16),
+  '  rc=${PIPESTATUS[1]}',
+  '  case $rc in 0) ;; 28) exit 21 ;; 23|63) exit 22 ;; *) exit 20 ;; esac',
   '}',
+  'api() { fetch "$server$1"; }',
   // Same, but with query parameters curl encodes itself (-G --data-urlencode),
   // so a JQL string with spaces and quotes survives the trip.
   'apiq() {',
   '  path="$1"; shift',
-  '  printf \'user = "%s:%s"\\nproto = "=https"\\nsilent\\nshow-error\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
-  '    curl -K - -G "$@" "$server$path" || exit 20',
+  '  fetch -G "$@" "$server$path"',
   '}'
 ].join("\n")
 
@@ -369,6 +384,8 @@ function authMessage(exitCode, status) {
   if (exitCode === 12) return "No API token found. " + setupHint
   if (exitCode === 13) return "The Jira site must use https:// so the API token is never sent in plaintext."
   if (exitCode === 20) return "Could not reach the Jira site. Check the URL and your connection."
+  if (exitCode === 21) return "Jira took too long to answer (over " + maxTime + "s). Try again shortly."
+  if (exitCode === 22) return "Jira sent a response too large to read (over " + Math.round(maxBytes / 1048576) + " MB)."
   if (status === 401) return "Jira rejected these credentials (401). Check the account email and API token."
   if (status === 403) return "Jira refused the request (403). The account may need to re-authenticate or lacks permission."
   if (status === 404) return "Jira did not recognise that site address (404). Check the site URL."
