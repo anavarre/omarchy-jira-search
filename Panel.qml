@@ -511,7 +511,20 @@ Panel {
         if (root.showSettings) siteField.forceActiveFocus()
         else field.forceActiveFocus()
       })
+    } else {
+      root.releaseRequests()
     }
+  }
+
+  // Whatever the close path — Escape, outside click, opening a ticket, or the
+  // shell hiding the panel — a pending keystroke must not fire a search into
+  // a closed panel, and a request still in flight must not paint into it.
+  // The processes themselves are left to finish (curl is bounded by its own
+  // deadline); their results are dropped because the sequence moved on.
+  function releaseRequests() {
+    debounce.stop()
+    root.cancelSearch()
+    root.cancelLookup()
   }
 
   Process {
