@@ -33,6 +33,16 @@ o.bind("SUPER + SHIFT + J", "Jira Search", "omarchy-shell shell summon anavarre.
 Hyprland picks the change up on save; `SUPER + SHIFT + J` then opens the panel
 with the field already focused.
 
+The payload can also fill the field in, as if the text had been typed —
+handy for a binding that jumps straight to a project or a ticket:
+
+```lua
+o.bind("SUPER + SHIFT + K", "Jira: ABC", [[omarchy-shell shell summon anavarre.jira-search '{"query": "project = ABC"}']])
+```
+
+Only `query` is read; it is flattened to one line and capped at 500
+characters. Anything that is not a JSON object opens the panel as `'{}'` does.
+
 ## Connect
 
 Open the panel and fill in **Site**, **Account email** and **API token**, then

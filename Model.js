@@ -354,6 +354,26 @@ function searchMessage(exitCode, status, body) {
   return detail ? detail.slice(0, 200) : "Search failed (HTTP " + status + ")."
 }
 
+// The summon payload is untrusted: whatever was typed into a keybinding or a
+// script. Anything that is not a JSON object is read as `{}`, unknown keys are
+// ignored, and the one field honoured — `query`, a prefill for the search
+// field — is flattened to a single line and capped. It only ever lands in the
+// field, where it is treated exactly as if it had been typed.
+var maxPrefill = 500
+
+function parsePayload(payloadJson) {
+  var payload = payloadJson
+  if (typeof payload === "string") {
+    try { payload = JSON.parse(payload || "{}") }
+    catch (error) { payload = null }
+  }
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) payload = {}
+  var query = typeof payload.query === "string" ? payload.query : ""
+  query = query.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ").trim()
+  if (query.length > maxPrefill) query = query.slice(0, maxPrefill).trim()
+  return { query: query }
+}
+
 function normalizeKey(text) {
   return String(text || "").trim().toUpperCase()
 }

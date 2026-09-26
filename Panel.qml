@@ -122,7 +122,17 @@ Panel {
   // close() back on the plugin as part of hiding it.
   property bool closing: false
 
-  function open() { root.controller.show() }
+  // `omarchy-shell shell summon anavarre.jira-search '{"query": "ABC-123"}'`
+  // opens the panel with the field already filled in, and searches it as if
+  // it had been typed. A summon while the panel is up replaces the field;
+  // one without a query leaves it as it was.
+  function open(payloadJson) {
+    var payload = Model.parsePayload(payloadJson)
+    root.controller.show()
+    if (payload.query === "") return
+    field.text = payload.query
+    field.cursorPosition = field.text.length
+  }
 
   function close() {
     if (root.closing) return
