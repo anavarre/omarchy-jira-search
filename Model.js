@@ -30,7 +30,8 @@ var searchLimit = 20
 //
 // Exit codes: 10 no site, 11 no account, 12 no token, 13 site not https,
 // 20 request failed, 21 timed out, 22 response too large.
-// On success the body is printed with the HTTP status on its own last line.
+// On success the resolved site is printed on the first line, then the body,
+// then the HTTP status on its own last line.
 var connectTimeout = 10
 var maxTime = 20
 var maxBytes = 1048576
@@ -82,11 +83,14 @@ var prelude = [
   '  case $rc in 0) ;; 28) exit 21 ;; 23|63) exit 22 ;; *) exit 20 ;; esac',
   '  printf \'%s\' "$out"',
   '}',
-  'api() { fetch "$server$1"; }',
+  // The site goes first so the panel can build browse links from the site it
+  // is configured for rather than from whatever the response claims.
+  'api() { printf \'%s\\n\' "$server"; fetch "$server$1"; }',
   // Same, but with query parameters curl encodes itself (-G --data-urlencode),
   // so a JQL string with spaces and quotes survives the trip.
   'apiq() {',
   '  path="$1"; shift',
+  '  printf \'%s\\n\' "$server"',
   '  fetch -G "$@" "$server$path"',
   '}'
 ].join("\n")
@@ -314,7 +318,7 @@ function hasFilter(filters, filter) {
   return false
 }
 
-function parseResults(raw) {
+function parseResults(raw, site) {
   var data = JSON.parse(raw)
   var issues = data.issues || []
   var out = []
@@ -322,11 +326,9 @@ function parseResults(raw) {
     var f = issues[i].fields || {}
     out.push({
       key: text(issues[i].key),
-      // The browse URL is derived from the API URL the issue carries, so a
+      // The browse URL is built from the configured site and the key, so a
       // result opens in the browser without a second round trip to fetch it.
-      url: issues[i].self
-        ? text(issues[i].self).replace(/\/rest\/api\/.*$/, "/browse/" + text(issues[i].key))
-        : "",
+      url: browseUrl(site, issues[i].key),
       summary: text(f.summary),
       status: f.status ? text(f.status.name) : "",
       type: f.issuetype ? text(f.issuetype.name) : "",
@@ -364,18 +366,44 @@ function text(value) {
   return value === undefined || value === null ? "" : String(value)
 }
 
-// curl appends the HTTP status on its own final line (write-out), so the body
-// is everything before it.
+// The shell prints the resolved site on the first line, and curl appends the
+// HTTP status on its own final line (write-out), so the body is everything in
+// between.
 function splitResponse(out) {
   var s = String(out || "")
+  var j = s.indexOf("\n")
+  var site = j < 0 ? "" : s.slice(0, j)
+  s = j < 0 ? s : s.slice(j + 1)
   var i = s.lastIndexOf("\n")
-  if (i < 0) return { body: "", status: parseInt(s.trim(), 10) || 0 }
-  return { body: s.slice(0, i), status: parseInt(s.slice(i + 1).trim(), 10) || 0 }
+  if (i < 0) return { site: site, body: "", status: parseInt(s.trim(), 10) || 0 }
+  return { site: site, body: s.slice(0, i), status: parseInt(s.slice(i + 1).trim(), 10) || 0 }
+}
+
+// Links leave the shell for the browser, so only an https URL on the
+// configured site's own host, pointing at a well-formed key, is ever built or
+// opened. The site may carry a context path (Jira Data Center), but no
+// userinfo, query or fragment that could send the browser somewhere else.
+var sitePattern = /^https:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~-]+)*$/
+
+function isValidSite(site) {
+  return sitePattern.test(text(site))
+}
+
+function browseUrl(site, key) {
+  var k = text(key)
+  if (!isValidSite(site) || !keyPattern.test(k)) return ""
+  return text(site) + "/browse/" + k
+}
+
+function isSafeBrowseUrl(url, site) {
+  var u = text(url)
+  var prefix = text(site) + "/browse/"
+  return isValidSite(site) && u.indexOf(prefix) === 0 && keyPattern.test(u.slice(prefix.length))
 }
 
 // Only the handful of fields the panel shows are pulled out, so a field the
 // instance doesn't configure comes back empty rather than breaking the parse.
-function parseIssue(raw) {
+function parseIssue(raw, site) {
   var data = JSON.parse(raw)
   var f = data.fields || {}
   return {
@@ -388,7 +416,7 @@ function parseIssue(raw) {
     reporter: f.reporter ? text(f.reporter.displayName) : "",
     project: f.project ? text(f.project.name) : "",
     updated: text(f.updated),
-    url: data.self ? text(data.self).replace(/\/rest\/api\/.*$/, "/browse/" + text(data.key)) : ""
+    url: browseUrl(site, data.key)
   }
 }
 

@@ -79,6 +79,9 @@ Panel {
   property string authState: "unknown"
   property string authError: ""
   property string authAccount: ""
+  // The site the last response was fetched from; links are only opened when
+  // they point at it.
+  property string site: ""
   readonly property bool authenticated: authState === "ok"
 
   // The settings form. It opens by itself whenever credentials don't work,
@@ -262,13 +265,13 @@ Panel {
   function openResult(index) {
     if (index < 0 || index >= root.results.length) return
     var result = root.results[index]
-    if (result.url === "") { root.lookup(result.key); return }
+    if (!Model.isSafeBrowseUrl(result.url, root.site)) { root.lookup(result.key); return }
     Qt.openUrlExternally(result.url)
     root.close()
   }
 
   function openIssue() {
-    if (root.issue === null || root.issue.url === "") return
+    if (root.issue === null || !Model.isSafeBrowseUrl(root.issue.url, root.site)) return
     Qt.openUrlExternally(root.issue.url)
     root.close()
   }
@@ -594,6 +597,7 @@ Panel {
     stdout: StdioCollector { id: authStdout; waitForEnd: true }
     onExited: function(exitCode) {
       var res = Model.splitResponse(authStdout.text)
+      if (Model.isValidSite(res.site)) root.site = res.site
       var message = Model.authMessage(exitCode, res.status)
       if (message !== "") {
         root.authState = "error"
@@ -634,6 +638,7 @@ Panel {
       if (!current) return
       root.loading = false
       var res = Model.splitResponse(text)
+      if (Model.isValidSite(res.site)) root.site = res.site
       var message = Model.lookupMessage(exitCode, res.status, res.body)
       if (message !== "") {
         root.issue = null
@@ -649,7 +654,7 @@ Panel {
         return
       }
       try {
-        root.issue = Model.parseIssue(res.body)
+        root.issue = Model.parseIssue(res.body, res.site)
         root.errorText = ""
       } catch (e) {
         root.issue = null
@@ -680,6 +685,7 @@ Panel {
       root.searching = false
       if (searchProcess.query !== root.pendingJql) return
       var res = Model.splitResponse(text)
+      if (Model.isValidSite(res.site)) root.site = res.site
       var message = Model.searchMessage(exitCode, res.status, res.body)
       if (message !== "") {
         root.results = []
@@ -694,7 +700,7 @@ Panel {
         return
       }
       try {
-        root.results = Model.parseResults(res.body)
+        root.results = Model.parseResults(res.body, res.site)
         root.resultsQuery = searchProcess.query
         root.resetSelection()
         root.errorText = root.results.length === 0
