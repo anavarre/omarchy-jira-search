@@ -20,6 +20,12 @@ Panel {
   property string errorText: ""
   property var issue: null
 
+  // One number per kind of request, bumped every time a newer request of that
+  // kind is wanted or the old one is abandoned. A run only paints if its
+  // number is still the current one when it exits.
+  property int searchSeq: 0
+  property int viewSeq: 0
+
   // The field does two jobs. Anything typed searches as you go and lists up to
   // 20 matches; Enter pins what was typed as a filter so the next thing typed
   // narrows it further. A complete ticket ID submitted with Enter on its own,
@@ -267,31 +273,72 @@ Panel {
     root.close()
   }
 
-  // Full metadata for one ticket. An in-flight lookup is left to finish and its
-  // result discarded — `issue` is only written by the run that is still wanted.
+  // Full metadata for one ticket. A Process that is already running ignores
+  // both a new command and `running = true`, so a lookup asked for mid-flight
+  // is queued and started from onExited; the run in flight finishes and its
+  // result is discarded — `issue` is only written by the run still wanted.
   function lookup(text) {
     if (!root.authenticated) { root.checkAuth(); return }
     var key = Model.normalizeKey(text)
     if (!Model.isValidKey(key)) return
+    // A search still in flight would paint its list over the card.
+    root.cancelSearch()
     root.issue = null
     root.errorText = ""
     root.loading = true
-    viewProcess.command = Model.viewCommand(key)
+    root.viewSeq++
+    viewProcess.nextKey = key
+    viewProcess.queued = true
+    if (!viewProcess.running) root.launchLookup()
+  }
+
+  function launchLookup() {
+    if (!viewProcess.queued || viewProcess.running) return
+    viewProcess.queued = false
+    viewProcess.key = viewProcess.nextKey
+    viewProcess.seq = root.viewSeq
+    viewProcess.command = Model.viewCommand(viewProcess.key)
     viewProcess.running = true
   }
 
-  // Every filter plus the draft, as one JQL query.
+  // The user moved on from the ticket being fetched: whatever it returns is
+  // no longer theirs to see.
+  function cancelLookup() {
+    root.viewSeq++
+    viewProcess.queued = false
+    root.loading = false
+  }
+
+  // Every filter plus the draft, as one JQL query. Queued the same way as a
+  // lookup when a search is already in flight.
   function runSearch() {
     if (!root.authenticated) { root.checkAuth(); return }
     debounce.stop()
     var jql = root.pendingJql
     if (jql === "") { root.clearResults(); return }
+    root.cancelLookup()
     root.issue = null
     root.errorText = ""
     root.searching = true
-    searchProcess.query = jql
-    searchProcess.command = Model.searchCommand(jql)
+    root.searchSeq++
+    searchProcess.nextQuery = jql
+    searchProcess.queued = true
+    if (!searchProcess.running) root.launchSearch()
+  }
+
+  function launchSearch() {
+    if (!searchProcess.queued || searchProcess.running) return
+    searchProcess.queued = false
+    searchProcess.query = searchProcess.nextQuery
+    searchProcess.seq = root.searchSeq
+    searchProcess.command = Model.searchCommand(searchProcess.query)
     searchProcess.running = true
+  }
+
+  function cancelSearch() {
+    root.searchSeq++
+    searchProcess.queued = false
+    root.searching = false
   }
 
   // Only the results go; the filters are the user's and stay until they say
@@ -301,7 +348,7 @@ Panel {
     root.resultsQuery = ""
     root.selected = -1
     root.errorText = ""
-    root.searching = false
+    root.cancelSearch()
     debounce.stop()
   }
 
@@ -556,12 +603,24 @@ Panel {
 
   Process {
     id: viewProcess
+    // `key`/`seq` describe the run in flight; `nextKey`/`queued` the one
+    // waiting for it to exit.
+    property string key: ""
+    property int seq: 0
+    property string nextKey: ""
+    property bool queued: false
     running: false
     command: []
     stdout: StdioCollector { id: viewStdout; waitForEnd: true }
     onExited: function(exitCode) {
+      var current = viewProcess.seq === root.viewSeq
+      var text = viewStdout.text
+      // Started on the next turn of the event loop, once this run is fully
+      // torn down; the next request may also start first and take it.
+      if (viewProcess.queued) Qt.callLater(root.launchLookup)
+      if (!current) return
       root.loading = false
-      var res = Model.splitResponse(viewStdout.text)
+      var res = Model.splitResponse(text)
       var message = Model.lookupMessage(exitCode, res.status, res.body)
       if (message !== "") {
         root.issue = null
@@ -587,19 +646,27 @@ Panel {
   }
 
   // Only the newest query is allowed to paint: a slow earlier request that
-  // lands after the user has typed on is dropped.
+  // lands after the user has typed on is dropped, and the newest one, queued
+  // behind it, starts as soon as it exits.
   Process {
     id: searchProcess
     property string query: ""
+    property int seq: 0
+    property string nextQuery: ""
+    property bool queued: false
     running: false
     command: []
     stdout: StdioCollector { id: searchStdout; waitForEnd: true }
     onExited: function(exitCode) {
       // A slower earlier query that lands after the filters or the draft
-      // moved on is no longer the search anybody asked for.
-      if (searchProcess.query !== root.pendingJql) return
+      // moved on, or after the search was abandoned, is no longer the search
+      // anybody asked for.
+      var text = searchStdout.text
+      if (searchProcess.queued) Qt.callLater(root.launchSearch)
+      if (searchProcess.seq !== root.searchSeq) return
       root.searching = false
-      var res = Model.splitResponse(searchStdout.text)
+      if (searchProcess.query !== root.pendingJql) return
+      var res = Model.splitResponse(text)
       var message = Model.searchMessage(exitCode, res.status, res.body)
       if (message !== "") {
         root.results = []
@@ -724,8 +791,10 @@ Panel {
           onAccepted: root.submit(text)
           onTextChanged: {
             if (!root.authenticated) return
-            // Typing is a search again, so the examples make way for it.
+            // Typing is a search again, so the examples make way for it, and
+            // a ticket still being fetched is no longer the one on screen.
             root.helpOpen = false
+            root.cancelLookup()
             root.isJql = Model.looksLikeJql(text)
             var trimmed = text.trim()
             root.resetSelection()
