@@ -56,17 +56,31 @@ var prelude = [
   'server="${server%/}"',
   '[ -n "$server" ] || exit 10',
   'case "$server" in https://*) ;; *://*) exit 13 ;; *) server="https://$server" ;; esac',
+  // The account and token go into a curl config line, so a CR/LF from any
+  // source would start a new directive, and a quote or backslash would end
+  // the value early. Newlines are dropped and the rest escaped.
+  'cfgq() { printf \'%s\' "$1" | tr -d "\\r\\n" | sed \'s|\\\\|\\\\\\\\|g; s|"|\\\\"|g\'; }',
+  'email=$(cfgq "$email")',
+  'token=$(cfgq "$token")',
   '[ -n "$email" ] || exit 11',
   '[ -n "$token" ] || exit 12',
-  // head exits at the cap (plus room for the status line), so curl's next
-  // write fails (23) instead of streaming on; 63 is curl's own size refusal.
+  // -q must come first so ~/.curlrc can't turn on location or insecure.
+  // head keeps one byte past the cap (body plus "\n" and a 3-digit status),
+  // so anything longer is known to be oversized. The size is checked before
+  // curl's status: when head stops reading, curl fails with 23, and a body
+  // that fits in the pipe buffer can end with curl exiting 0. 63 is curl's
+  // own size refusal.
   'fetch() {',
-  '  printf \'user = "%s:%s"\\nproto = "=https"\\nsilent\\nshow-error\\nconnect-timeout = ' + connectTimeout +
+  '  local LC_ALL=C out rc',
+  '  out=$(printf \'user = "%s:%s"\\nproto = "=https"\\nproto-redir = "=https"\\nsilent\\nshow-error\\nconnect-timeout = ' + connectTimeout +
     '\\nmax-time = ' + maxTime + '\\nmax-filesize = ' + maxBytes +
     '\\nheader = "Accept: application/json"\\nwrite-out = "\\\\n%%{http_code}"\\n\' "$email" "$token" |',
-  '    curl -K - "$@" | head -c ' + (maxBytes + 16),
-  '  rc=${PIPESTATUS[1]}',
+  '    curl -q -K - "$@" | head -c ' + (maxBytes + 5) + '; printf \'\\n%s\' "${PIPESTATUS[1]}")',
+  '  rc=${out##*$\'\\n\'}',
+  '  out=${out%$\'\\n\'*}',
+  '  [ ${#out} -le ' + (maxBytes + 4) + ' ] || exit 22',
   '  case $rc in 0) ;; 28) exit 21 ;; 23|63) exit 22 ;; *) exit 20 ;; esac',
+  '  printf \'%s\' "$out"',
   '}',
   'api() { fetch "$server$1"; }',
   // Same, but with query parameters curl encodes itself (-G --data-urlencode),
