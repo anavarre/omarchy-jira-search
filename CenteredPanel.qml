@@ -179,9 +179,11 @@ PanelWindow {
 
   // --- backdrop + outside-click dismissal ---------------------------------
 
+  // The theme's scrim, as the scaffold's overlay and menu templates use, so
+  // the dimming follows the theme instead of being black on every palette.
   Rectangle {
     anchors.fill: parent
-    color: Qt.rgba(0, 0, 0, 0.35)
+    color: Color.menu.scrim
     opacity: card.opacity
 
     MouseArea {

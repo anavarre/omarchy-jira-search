@@ -107,7 +107,9 @@ Panel {
   readonly property real maxResultsHeight: Math.max(Style.space(120),
     root.cardHeight - panel.verticalContentInset - root.resultsChrome)
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  // The card is drawn on the popups surface, not on the bar, so its text takes
+  // the popups roles; the bar's colours are meant for the bar's own background.
+  readonly property color foreground: Color.popups.text
   readonly property color dim: Qt.darker(foreground, 1.5)
   // Type scale, borrowed from the obsidian-focused-search plugin next door:
   // the menu family rather than the bar's font, and a step up from the sizes
@@ -1037,7 +1039,7 @@ Panel {
           visible: root.authError !== ""
           text: root.authError
           textFormat: Text.PlainText
-          color: bar ? bar.urgent : Color.urgent
+          color: Color.urgent
           font.family: root.fontFamily
           font.pixelSize: root.fontBody
           wrapMode: Text.Wrap
@@ -1214,7 +1216,7 @@ Panel {
         visible: !root.loading && root.errorText !== "" && !root.showHelp
         text: root.errorText
         textFormat: Text.PlainText
-        color: bar ? bar.urgent : Color.urgent
+        color: Color.urgent
         font.family: root.fontFamily
         font.pixelSize: root.fontBody
         wrapMode: Text.Wrap
