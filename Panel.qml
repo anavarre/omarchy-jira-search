@@ -675,6 +675,7 @@ Panel {
                 // The label gives way before the card does.
                 width: Math.min(implicitWidth, content.width - Style.space(32))
                 text: Model.filterLabel(modelData)
+                textFormat: Text.PlainText
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: root.fontMeta
@@ -845,6 +846,7 @@ Panel {
                   anchors.verticalCenter: parent.verticalCenter
                   width: Math.min(implicitWidth, parent.width * 0.6)
                   text: modelData.jql
+                  textFormat: Text.PlainText
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: root.fontMeta
@@ -859,6 +861,7 @@ Panel {
                   anchors.verticalCenter: parent.verticalCenter
                   width: parent.width - exampleJql.width - Style.space(20)
                   text: modelData.about
+                  textFormat: Text.PlainText
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: root.fontMeta
@@ -935,6 +938,7 @@ Panel {
           width: parent.width
           visible: root.authError !== ""
           text: root.authError
+          textFormat: Text.PlainText
           color: bar ? bar.urgent : Color.urgent
           font.family: root.fontFamily
           font.pixelSize: root.fontBody
@@ -1077,6 +1081,7 @@ Panel {
             width: Math.min(implicitWidth, parent.parent.width - credentialsButton.width - parent.spacing)
             anchors.verticalCenter: credentialsButton.verticalCenter
             text: root.authAccount !== "" ? "Signed in as " + root.authAccount : "Signed in"
+            textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: root.fontMeta
@@ -1110,6 +1115,7 @@ Panel {
         width: parent.width
         visible: !root.loading && root.errorText !== "" && !root.showHelp
         text: root.errorText
+        textFormat: Text.PlainText
         color: bar ? bar.urgent : Color.urgent
         font.family: root.fontFamily
         font.pixelSize: root.fontBody
@@ -1197,6 +1203,7 @@ Panel {
                       width: Math.max(0, parent.width - issueType.width
                         - (issueType.width > 0 ? Style.space(4) : 0))
                       text: modelData.key + " · " + modelData.status
+                      textFormat: Text.PlainText
                       color: root.foreground
                       font.family: root.fontFamily
                       font.pixelSize: root.fontMeta
@@ -1211,6 +1218,7 @@ Panel {
                       visible: modelData.type !== ""
                       width: visible ? Math.min(implicitWidth, parent.width * 0.4) : 0
                       text: modelData.type
+                      textFormat: Text.PlainText
                       color: root.dim
                       font.family: root.fontFamily
                       font.pixelSize: root.fontMeta
@@ -1222,6 +1230,7 @@ Panel {
                   Text {
                     width: parent.width
                     text: modelData.summary
+                    textFormat: Text.PlainText
                     color: root.foreground
                     font.family: root.fontFamily
                     font.pixelSize: root.fontBody
@@ -1266,6 +1275,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               width: parent.width - (openHint.visible ? openHint.width + Style.space(8) : 0)
               text: root.issue ? root.issue.key + " · " + root.issue.status : ""
+              textFormat: Text.PlainText
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: root.fontHeading
@@ -1288,6 +1298,7 @@ Panel {
           Text {
             width: parent.width
             text: root.issue ? root.issue.summary : ""
+            textFormat: Text.PlainText
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: root.fontBody
@@ -1299,6 +1310,7 @@ Panel {
             text: root.issue
               ? [root.issue.type, root.issue.priority, root.issue.assignee].filter(function(v) { return v !== "" }).join(" · ")
               : ""
+            textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: root.fontBody
@@ -1309,6 +1321,7 @@ Panel {
             width: parent.width
             visible: root.issue && root.issue.updated !== ""
             text: root.issue ? "Updated " + Model.formatUpdated(root.issue.updated) : ""
+            textFormat: Text.PlainText
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: root.fontMeta
