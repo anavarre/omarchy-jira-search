@@ -10,7 +10,8 @@ the window is summoned by keybinding.
 
 ![Jira Search](preview.png)
 
-Requires `curl`.
+Requires `curl`. Uses `secret-tool` (`libsecret`) to keep the API token in the
+system keyring when it is installed.
 
 ## Install
 
@@ -125,11 +126,19 @@ and refuses to look anything up until the credentials verify against
 `GET /rest/api/3/myself`. A 401 or 403 during a lookup returns you to the form
 rather than showing a bare error.
 
-What you save lives in `~/.config/omarchy/jira-search/` (`config` and `token`,
-both `0600`, directory `0700`). The token field is masked, is never read back
-into the UI, and reaches `curl` through a config file on stdin — it never shows
-up in `ps` or in an argv. Leaving the token field blank keeps the token already
-on file.
+The site and account are saved in `~/.config/omarchy/jira-search/config`
+(`0600`, directory `0700`). The API token goes to the system keyring when
+`secret-tool` (from `libsecret`) is installed and a Secret Service such as
+gnome-keyring answers — it shows up in Seahorse as *Jira Search API token*.
+Without one, it is saved next to the config as `token`, also `0600`. Saving to
+the keyring removes an older `token` file, so no plaintext copy is left behind.
+
+Each keyring call gives up after 5 seconds, so a locked keyring whose unlock
+prompt goes unanswered falls back to the file rather than hanging the panel.
+
+The token field is masked, is never read back into the UI, and reaches
+`secret-tool` and `curl` on stdin — it never shows up in `ps` or in an argv.
+Leaving the token field blank keeps the token already stored.
 
 Environment variables and an existing `jira` CLI config still win where set, so
 a current setup keeps working untouched:
@@ -138,7 +147,7 @@ a current setup keeps working untouched:
 | --- | --- |
 | Site | `$JIRA_SERVER` → saved `config` → `server:` in `~/.config/.jira/.config.yml` |
 | Account | `$JIRA_EMAIL` → saved `config` → `login:` in `~/.config/.jira/.config.yml` |
-| API token | `$JIRA_API_TOKEN` → saved `token` file → `~/.jira-api-token` |
+| API token | `$JIRA_API_TOKEN` → keyring → saved `token` file → `~/.jira-api-token` |
 
 The plugin's shell does not inherit `~/.bashrc`, so a `$JIRA_API_TOKEN`
 exported there is invisible to it — that is what the form is for. The `jira`
@@ -160,6 +169,7 @@ in the panel before uninstalling:
 
 ```bash
 rm -rf ~/.config/omarchy/jira-search
+secret-tool clear service anavarre.jira-search kind api-token
 ```
 
 Also drop the `o.bind(...)` line from `~/.config/hypr/bindings.lua` if you

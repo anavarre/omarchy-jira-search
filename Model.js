@@ -15,8 +15,8 @@ var searchLimit = 20
 //
 // Credentials are resolved in the shell, never held in QML: the site and
 // account come from the env or the jira-cli config, and the API token from
-// $JIRA_API_TOKEN or a token file. curl reads `user =` from a config file on
-// stdin (-K -) so the token never appears in argv or in `ps`.
+// $JIRA_API_TOKEN, the keyring or a token file. curl reads `user =` from a
+// config file on stdin (-K -) so the token never appears in argv or in `ps`.
 //
 // The site must be https: Basic auth sends the token with every request, so a
 // plaintext site would put it on the wire. A bare host gets https:// added;
@@ -37,16 +37,31 @@ var connectTimeout = 10
 var maxTime = 20
 var maxBytes = 1048576
 
+// The token is kept in the Secret Service keyring (gnome-keyring on Omarchy)
+// when secret-tool is installed and a keyring answers, and in a 0600 file
+// otherwise. secret-tool reads the secret from stdin, so it stays out of argv
+// like everywhere else. Every call is capped at keyringTimeout seconds: a
+// locked keyring raises an unlock prompt, and a search must not hang on it.
+var keyringTimeout = 5
+var keyring = [
+  'kr() {',
+  '  command -v secret-tool >/dev/null 2>&1 || return 1',
+  '  timeout ' + keyringTimeout + ' secret-tool "$@" service anavarre.jira-search kind api-token 2>/dev/null',
+  '}',
+  'krget() { kr lookup | head -n1 | tr -d "\\r\\n"; }'
+].join("\n")
+
 // Every command below runs as `bash -c SCRIPT jira-search ARG...`. SCRIPT is
 // built only from the literals in this file and the numeric limits above;
 // nothing typed in the panel or returned by Jira is ever spliced into it.
 // Runtime values reach the shell another way: a ticket key or JQL string as
 // a positional argument ("$1", always quoted), form values on stdin, and
-// credentials from the environment or files the shell reads itself. Keep it
-// that way — string-building user input into SCRIPT would turn a search box
-// into a shell prompt.
+// credentials from the environment, the keyring or files the shell reads
+// itself. Keep it that way — string-building user input into SCRIPT would
+// turn a search box into a shell prompt.
 var prelude = [
   'set -u',
+  keyring,
   'store="${JIRA_SEARCH_DIR:-$HOME/.config/omarchy/jira-search}"',
   'cfg="${JIRA_CONFIG_FILE:-$HOME/.config/.jira/.config.yml}"',
   'saved() { [ -r "$store/config" ] && sed -n "s|^$1=||p" "$store/config" | head -n1; }',
@@ -58,6 +73,7 @@ var prelude = [
   '[ -n "$email" ] || email=$(saved email)',
   '[ -n "$email" ] || email=$(conf login)',
   'token="${JIRA_API_TOKEN:-}"',
+  '[ -n "$token" ] || token=$(krget)',
   'if [ -z "$token" ]; then',
   '  for f in "$store/token" "$HOME/.jira-api-token"; do',
   '    if [ -r "$f" ]; then token=$(head -n1 "$f" | tr -d "\\r\\n"); break; fi',
@@ -117,12 +133,16 @@ function configCommand() {
 
 // Writes what the form collected. Values arrive on stdin, one per line, so the
 // token never appears in argv; a blank third line keeps the stored token.
+// A new token goes to the keyring when one takes it, and the old token file
+// is then removed so no plaintext copy is left; otherwise it goes to the file,
+// and any keyring entry is cleared so a stale token cannot win the lookup.
 // Each write is checked, so a full disk or a read-only directory fails with 14
 // instead of reporting success and leaving a half-written config behind.
 function saveCommand() {
   return ["bash", "-c", [
     'set -u',
     'umask 077',
+    keyring,
     'store="${JIRA_SEARCH_DIR:-$HOME/.config/omarchy/jira-search}"',
     'IFS= read -r server || true',
     'IFS= read -r email || true',
@@ -133,21 +153,32 @@ function saveCommand() {
     'printf \'server=%s\\nemail=%s\\n\' "$server" "$email" > "$store/config" || exit 14',
     'chmod 600 "$store/config" || exit 14',
     'if [ -n "$token" ]; then',
-    '  printf \'%s\' "$token" > "$store/token" || exit 14',
-    '  chmod 600 "$store/token" || exit 14',
+    '  if printf \'%s\' "$token" | kr store --label="Jira Search API token"; then',
+    '    rm -f "$store/token" || exit 14',
+    '    [ ! -e "$store/token" ] || exit 14',
+    '  else',
+    '    printf \'%s\' "$token" > "$store/token" || exit 14',
+    '    chmod 600 "$store/token" || exit 14',
+    '    kr clear',
+    '    [ -z "$(krget)" ] || exit 14',
+    '  fi',
     'fi',
-    '[ -s "$store/token" ] || [ -n "${JIRA_API_TOKEN:-}" ] || exit 12'
+    '[ -n "${JIRA_API_TOKEN:-}" ] || [ -s "$store/token" ] || [ -n "$(krget)" ] || exit 12'
   ].join("\n")]
 }
 
 // Drops everything this plugin stored. Credentials from the environment or
-// from jira-cli's own config are not ours to remove.
+// from jira-cli's own config are not ours to remove. The keyring entry is
+// checked the same way as the files: forget fails if it is still there.
 function forgetCommand() {
   return ["bash", "-c", [
+    keyring,
     'store="${JIRA_SEARCH_DIR:-$HOME/.config/omarchy/jira-search}"',
-    'rm -f "$store/config" "$store/token" || exit 14',
-    // rm -f is quiet about what it could not remove, so check what is left.
-    '[ ! -e "$store/config" ] && [ ! -e "$store/token" ] || exit 14'
+    'rm -f "$store/config" "$store/token"',
+    'kr clear',
+    // rm -f and secret-tool clear are quiet about what they could not
+    // remove, so check what is left once both have had a go.
+    '[ ! -e "$store/config" ] && [ ! -e "$store/token" ] && [ -z "$(krget)" ] || exit 14'
   ].join("\n")]
 }
 
