@@ -1,5 +1,7 @@
 # Jira Search
 
+[![Built for Omarchy: Plugin](https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-plugin.svg)](https://github.com/tcballard/omarchy-badges)
+
 An [Omarchy](https://omarchy.org) plugin for Jira Cloud. Search by text, by
 JQL or by ticket ID, stack searches as filters that narrow one another, and
 open any issue's metadata without leaving the panel. The search window opens
@@ -10,17 +12,39 @@ the window is summoned by keybinding.
 
 ![Jira Search](preview.png)
 
-Requires `curl`. Uses `secret-tool` (`libsecret`) to keep the API token in the
-system keyring when it is installed.
+## Requirements
+
+- Omarchy 4 with Quattro shell-plugin support.
+- `curl`.
+- Optional: `secret-tool` (`libsecret`) and a running Secret Service such as
+  gnome-keyring, to keep the API token in the system keyring.
+- A Jira Cloud site reachable over https, and an Atlassian API token.
+
+The plugin talks only to the configured Jira site. It launches `bash`, `curl`
+and, when present, `secret-tool` and `timeout`; it writes only to
+`~/.config/omarchy/jira-search` and the keyring entry described under
+[Credentials and storage](#credentials-and-storage). No third-party code is
+bundled.
 
 ## Install
 
 ```bash
-cp -r . ~/.config/omarchy/plugins/anavarre.jira-search
-omarchy plugin validate ~/.config/omarchy/plugins/anavarre.jira-search
-omarchy plugin enable anavarre.jira-search
-omarchy-shell shell rescanPlugins
+omarchy plugin add https://github.com/anavarre/omarchy-jira-search.git --enable
 ```
+
+From a local checkout:
+
+```bash
+omarchy plugin add "$(pwd)" --enable
+```
+
+## Update
+
+```bash
+omarchy plugin update anavarre.jira-search
+```
+
+Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ### Keybinding
 
@@ -188,6 +212,33 @@ so no test reads real credentials, touches the keyring or reaches the network.
 Fixtures in `tests/fixtures` are fictional. Needs `bash`, `python3` and Node
 18 or later; CI runs the same script on every push and pull request.
 
+## Compatibility
+
+Supported target: Omarchy 4 with Quattro shell plugins, Jira Cloud (REST API
+v3). Quattro's plugin contract is still evolving, so each release records the
+exact Omarchy version and plugin commit it was checked on in
+[CHANGELOG.md](CHANGELOG.md); anything not listed there is untested. Jira
+Server and Data Center are not supported.
+
+## Support
+
+Report bugs and ask questions in
+[GitHub issues](https://github.com/anavarre/omarchy-jira-search/issues).
+Include the Omarchy version, the plugin commit (`git -C
+~/.config/omarchy/plugins/anavarre.jira-search rev-parse HEAD`) and what the
+panel showed — never an API token.
+
+## Security
+
+Omarchy plugins run as unsandboxed code inside `omarchy-shell`, with your
+user's access to files and the network. Review this repository before enabling
+it.
+
+Report a vulnerability privately through
+[GitHub security advisories](https://github.com/anavarre/omarchy-jira-search/security/advisories/new),
+not in a public issue. Passing `omarchy plugin validate` or a marketplace scan
+is limited static evidence, not a security audit.
+
 ## License
 
-MIT
+MIT © Aurelien Navarre. See [LICENSE](LICENSE).
